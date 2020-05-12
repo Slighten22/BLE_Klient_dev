@@ -1,0 +1,11 @@
+main.cpp:101:5:int main()	128	static
+main.cpp:187:6:void SystemClock_Config()	232	static
+main.cpp:242:13:void MX_USART3_UART_Init()	8	static
+main.cpp:277:13:void MX_GPIO_Init()	48	static
+main.cpp:329:6:void StartDefaultTask(const void*)	16	static
+main.cpp:348:6:void AskForDataTaskThread(const void*)	24	static
+main.cpp:368:6:void PresentationTaskThread(const void*)	40	static
+main.cpp:394:6:void CommunicationTaskThread(const void*)	72	static
+main.cpp:588:6:void delayMicroseconds(uint32_t)	40	static
+main.cpp:611:6:void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef*)	16	static
+main.cpp:628:6:void Error_Handler()	4	static
