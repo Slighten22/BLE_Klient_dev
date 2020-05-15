@@ -120,11 +120,14 @@ void MX_BlueNRG_MS_Init(void)
   uint16_t fwVersion;
   int ret;
   
+  /* Initialize the button, LED, and UART (UART2!) */
   User_Init();
   
   /* Get the User Button initial state */
   user_button_init_state = BSP_PB_GetState(BUTTON_KEY);
   
+  /* ! Podczepienie wskaznika na funkcje user_notify (sprawdzajaca typ eventu i wywolujaca odpowiednia funkcje), ...
+   * inicjalizacja warstwy transportowej i kolejki pakietow danych */
   hci_init(user_notify, NULL);
       
   /* get the BlueNRG HW and FW versions */
@@ -143,16 +146,16 @@ void MX_BlueNRG_MS_Init(void)
   
   printf("HWver %d, FWver %d\n", hwVersion, fwVersion);
   
-  if (hwVersion > 0x30) { /* X-NUCLEO-IDB05A1 expansion board is used */
+  if (hwVersion > 0x30) { /* Yes, X-NUCLEO-IDB05A1 expansion board is used */
     bnrg_expansion_board = IDB05A1; 
   }
   
+  /* Skopiowanie i wpisanie adresu urzadzenia bdaddr */
   if (BLE_Role == CLIENT) {
     BLUENRG_memcpy(bdaddr, CLIENT_BDADDR, sizeof(CLIENT_BDADDR));
   } else {
     BLUENRG_memcpy(bdaddr, SERVER_BDADDR, sizeof(SERVER_BDADDR));
   }
-  
   ret = aci_hal_write_config_data(CONFIG_DATA_PUBADDR_OFFSET,
                                   CONFIG_DATA_PUBADDR_LEN,
                                   bdaddr);
@@ -160,6 +163,7 @@ void MX_BlueNRG_MS_Init(void)
     printf("Setting BD_ADDR failed 0x%02x.\n", ret);
   }
   
+  /* GATT init? */
   ret = aci_gatt_init();    
   if (ret) {
     printf("GATT_Init failed.\n");
@@ -167,6 +171,7 @@ void MX_BlueNRG_MS_Init(void)
   
   if (BLE_Role == SERVER) {
     if (bnrg_expansion_board == IDB05A1) {
+      /* Server: Inicjalizacja GAP (Generic Access Profile) - ustawia role urzadzenia, sciaga handle do nazwy i do serwisow */
       ret = aci_gap_init_IDB05A1(GAP_PERIPHERAL_ROLE_IDB05A1, 0, 0x07, &service_handle, &dev_name_char_handle, &appearance_char_handle);
     }
     else {
@@ -175,6 +180,7 @@ void MX_BlueNRG_MS_Init(void)
   }
   else {
     if (bnrg_expansion_board == IDB05A1) {
+      /* Klient: Inicjalizacja GAP (Generic Access Profile) - ustawia role urzadzenia, sciaga handle do nazwy i (nieuzywany?)do serwisow */
       ret = aci_gap_init_IDB05A1(GAP_CENTRAL_ROLE_IDB05A1, 0, 0x07, &service_handle, &dev_name_char_handle, &appearance_char_handle);
     }
     else {
@@ -186,6 +192,7 @@ void MX_BlueNRG_MS_Init(void)
     printf("GAP_Init failed.\n");
   }
     
+  /* Wymagania autoryzacji - w tym ustalony (staly) kod pin, typ klucza autoryzacji, tryb laczenia */
   ret = aci_gap_set_auth_requirement(MITM_PROTECTION_REQUIRED,
                                      OOB_AUTH_DATA_ABSENT,
                                      NULL,
@@ -200,6 +207,7 @@ void MX_BlueNRG_MS_Init(void)
   
   if (BLE_Role == SERVER) {
     printf("SERVER: BLE Stack Initialized\n");
+    /* !!! Dodawanie glownego serwisu i charakterystyk TX i RX przez serwer! */
     ret = Add_Sample_Service();
     
     if (ret == BLE_STATUS_SUCCESS)
@@ -228,8 +236,9 @@ void MX_BlueNRG_MS_Process(void)
   
   /* USER CODE END BlueNRG_MS_Process_PreTreatment */
   
-  User_Process();
-  hci_user_evt_proc(); /// tu siedza dane!
+  User_Process(); /* Stworzenie (nie nawiazanie) polaczenia (master) lub ustawienie wykrywalnosci (slave) i ?wlaczenie powiadomien, ?udostepnienie charakterystyk */
+  	  	  	  	  /* Po nawiazaniu polaczenia nic juz sie w User_Process nie dzieje! */
+  hci_user_evt_proc(); /* Przeparsuj otrzymane pakiety i wywolaj odpowiednie funkcje */
 
   /* USER CODE BEGIN BlueNRG_MS_Process_PostTreatment */
   
@@ -262,7 +271,7 @@ static void User_Process(void)
   if (set_connectable) 
   {
     /* Establish connection with remote device */
-    Make_Connection();
+    Make_Connection(); /* Stworzenie (nie nawiazanie) polaczenia (master) lub ustawienie wykrywalnosci (slave) */
     set_connectable = FALSE;
     user_button_init_state = BSP_PB_GetState(BUTTON_KEY);
   }
@@ -270,6 +279,7 @@ static void User_Process(void)
   if (BLE_Role == CLIENT) 
   {
     /* Start TX handle Characteristic dynamic discovery if not yet done */
+	/* z user_notify ustawiamy connected po nawiazaniu polaczenia = Skad jest wywolywane GAP_ConnectionComplete_CB */
     if (connected && !end_read_tx_char_handle){
       startReadTXCharHandle();
     }
@@ -280,44 +290,10 @@ static void User_Process(void)
     
     if (connected && end_read_tx_char_handle && end_read_rx_char_handle && !notification_enabled) 
     {
-      BSP_LED_Off(LED2); //end of the connection and chars discovery phase
-      enableNotification();
+      BSP_LED_Off(LED2); /* end of the connection and chars discovery phase */
+      enableNotification(); /* Wlacz wymiane danych? */
     }
-  }  
-
-//  /* Check if the User Button has been pushed */
-//  if (user_button_pressed)
-//  {
-//    /* Debouncing */
-//    HAL_Delay(50);
-//
-//    /* Wait until the User Button is released */
-//    while (BSP_PB_GetState(BUTTON_KEY) == !user_button_init_state);
-//
-//    /* Debouncing */
-//    HAL_Delay(50);
-    
-  	  delayMicrosecondsBLE(100000);
-
-  	  uint32_t data = 0;
-
-  	  if (connected /*&& notification_enabled*/)
-  	  {
-      /* Send a toggle command to the remote device */
-      //uint8_t data[20] = {'0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F','G','H','I','J'};
-      //sendData(data, sizeof(data));
-  	  receiveData(&data, sizeof(unsigned char));
-  	  //!!!niepotrzebne - dane i tak w strukturze hciContext.UserEvtRx(hciReadPacket->dataBuff);
-
-      BSP_LED_Toggle(LED2);  /* Toggle the LED2 locally. */
-                               /* If uncommented be sure the BSP_LED_Init(LED2)
-                                * is called in main().
-                                * E.g. it can be enabled for debugging. */
-  	  }
-    
-    /* Reset the User Button flag */
-    //user_button_pressed = 0;
-  	//}
+  } /* BLE_Role == CLIENT */
 }
 
 /**

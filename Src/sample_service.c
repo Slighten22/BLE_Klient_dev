@@ -115,12 +115,14 @@ tBleStatus Add_Sample_Service(void)
   */
   
   const uint8_t service_uuid[16] = {0x66,0x9a,0x0c,0x20,0x00,0x08,0x96,0x9e,0xe2,0x11,0x9e,0xb1,0xe0,0xf2,0x73,0xd9};
-  const uint8_t charUuidTX[16] = {0x66,0x9a,0x0c,0x20,0x00,0x08,0x96,0x9e,0xe2,0x11,0x9e,0xb1,0xe1,0xf2,0x73,0xd9};
-  const uint8_t charUuidRX[16] = {0x66,0x9a,0x0c,0x20,0x00,0x08,0x96,0x9e,0xe2,0x11,0x9e,0xb1,0xe2,0xf2,0x73,0xd9};
+  const uint8_t charUuidTX[16] = {0x66,0x9a,0x0c,0x20,0x00,0x08,0x96,0x9e,0xe2,0x11,0x9e,0xb1,0xe1,0xf2,0x73,0xd9}; //roznica na bajcie 12
+  const uint8_t charUuidRX[16] = {0x66,0x9a,0x0c,0x20,0x00,0x08,0x96,0x9e,0xe2,0x11,0x9e,0xb1,0xe2,0xf2,0x73,0xd9}; //roznica na bajcie 12
   
+  /* Dodanie jednego glownego serwisu o service_uuid jak wyzej i zapisanie handle'a do tego serwisu w sampleServHandle */
   ret = aci_gatt_add_serv(UUID_TYPE_128, service_uuid, PRIMARY_SERVICE, 7, &sampleServHandle); /* original is 9?? */
   if (ret != BLE_STATUS_SUCCESS) goto fail;    
   
+  /* Dodanie dwoch charakterystyk: TX i RX do stworzonego glownego serwisu, zapisanie handle'i do tych serwisow w TXCharHandle i RXCharH. */
   ret =  aci_gatt_add_char(sampleServHandle, UUID_TYPE_128, charUuidTX, 20, CHAR_PROP_NOTIFY, ATTR_PERMISSION_NONE, 0,
                            16, 1, &TXCharHandle);
   if (ret != BLE_STATUS_SUCCESS) goto fail;
@@ -150,7 +152,7 @@ void Make_Connection(void)
   if(BLE_Role == CLIENT) {
     
     printf("Client Create Connection\n");
-    tBDAddr bdaddr = {0xaa, 0x00, 0x00, 0xE1, 0x80, 0x02};
+    tBDAddr bdaddr = {0xaa, 0x00, 0x00, 0xE1, 0x80, 0x02}; /* Adres servera */
     
     BSP_LED_On(LED2); //To indicate the start of the connection and discovery phase
     
@@ -158,19 +160,30 @@ void Make_Connection(void)
     Scan_Interval, Scan_Window, Peer_Address_Type, Peer_Address, Own_Address_Type, Conn_Interval_Min, 
     Conn_Interval_Max, Conn_Latency, Supervision_Timeout, Conn_Len_Min, Conn_Len_Max    
     */
-    ret = aci_gap_create_connection(SCAN_P, SCAN_L, PUBLIC_ADDR, bdaddr, PUBLIC_ADDR, CONN_P1, CONN_P2, 0,
-                                    SUPERV_TIMEOUT, CONN_L1 , CONN_L2); 
+    ret = aci_gap_create_connection(
+    		SCAN_P, /* 10,24 msec = Time interval from when the Controller started its last scan until it begins the subsequent scan = how long to wait between scans (for a number N, Time = N x 0.625 msec) */
+    		SCAN_L, /* 10,24 msec = Scan Window: amount of time for the duration of the LE scan = how long to scan (for a number N, Time = N x 0.625 msec) */
+			PUBLIC_ADDR, /* Peer_Address_Type */
+			bdaddr, /* Peer_Address */
+			PUBLIC_ADDR, /* Own_Address_Type */
+			CONN_P1, /* 50 msec = Minimum Connection Period (interval) = time between two data transfer events (for a number N, Time = N x 1.25 msec) */
+			CONN_P2, /* 50 msec = Maximum Connection Period (interval) = Connection interval is the time between one radio event on a given connection and the next radio event on the same connection (for a number N, Time = N x 1.25 msec) */
+			0, /* Connection latency = If non-zero, the peripheral is allowed to skip up to slave latency radio events and not listen. That saves even more power, at the expense of even slower data. number of consecutive connection events where the slave doesn't need to listen on the master(?) */
+            SUPERV_TIMEOUT, /* 600 msec = Supervision Timeout (reset upon reception of a valid packet) max time between 2 packets before connection is considered lost (Time = N x 10 msec) */
+			CONN_L1, /* 1250 msec = Minimum Connection Length (for a number N, Time = N x 0.625 msec) */
+			CONN_L2  /* 1250 msec = Maximal Connection Length (for a number N, Time = N x 0.625 msec) */
+	);
     
     if (ret != 0){
       printf("Error while starting connection.\n");
-      HAL_Delay(100);
+//      delayMicrosecondsBLE(100);
     }
     
   } else  {
     
     const char local_name[] = {AD_TYPE_COMPLETE_LOCAL_NAME,'B','l','u','e','N','R','G','_','C','h','a','t'};
     
-    /* disable scan response */
+    /* disable scan response (nie bedize dodatkowych informacji o serverze dla mastera) */
     hci_le_set_scan_resp_data(0,NULL);
     
     PRINTF("General Discoverable Mode ");
@@ -179,8 +192,19 @@ void Make_Connection(void)
     Local_Name_Length, Local_Name, Service_Uuid_Length, Service_Uuid_List, Slave_Conn_Interval_Min,
     Slave_Conn_Interval_Max
     */
-    ret = aci_gap_set_discoverable(ADV_DATA_TYPE, ADV_INTERV_MIN, ADV_INTERV_MAX, PUBLIC_ADDR, 
-                                   NO_WHITE_LIST_USE, 13, local_name, 0, NULL, 0, 0);
+    ret = aci_gap_set_discoverable(
+    		ADV_DATA_TYPE, /* undirected scannable and connectable = Advertising_Event_Type */
+			ADV_INTERV_MIN,/* 1280 msec = Minimum Advertising Interval https://www.argenox.com/library/bluetooth-low-energy/ble-advertising-primer/(for a number N, Time = N x 0.625 msec) */
+			ADV_INTERV_MAX,/* 2560 msec = Maximal Advertising Interval (slow advertising, non-critical latency) (for a number N, Time = N x 0.625 msec) */
+			PUBLIC_ADDR,   /* public address = Address_Type */
+            NO_WHITE_LIST_USE,/* Process scan and connection requests from all devices (i.e., the White List is not in use) */
+			13, /* Local_Name_Length (= 0x09BlueNRG_Chat) */
+			local_name, /* 0x09BlueNRG_Chat */
+			0, /* Service_Uuid_Length */
+			NULL, /* Service_Uuid_List */
+			0, /* Slave_Conn_Interval_Min = time between one radio event on a given connection and the next radio event on the same connection */
+			0  /* Slave_Conn_Interval_Max https://devzone.nordicsemi.com/f/nordic-q-a/25340/do-i-understand-ble-connection-interval-properly */
+	);
     PRINTF("%d\n",ret);
   }
 }
@@ -262,11 +286,11 @@ void sendData(uint8_t* data_buffer, uint8_t Nb_bytes)
  */
 void enableNotification(void)
 {
-  uint8_t client_char_conf_data[] = {0x01, 0x00}; // Enable notifications
+  uint8_t client_char_conf_data[] = {0x01, 0x00}; /* Enable notifications */
   
   uint32_t tickstart = HAL_GetTick();
   
-  while(aci_gatt_write_charac_descriptor(connection_handle, tx_handle+2, 2, client_char_conf_data)==BLE_STATUS_NOT_ALLOWED){
+  while(aci_gatt_write_charac_descriptor(connection_handle, tx_handle+2, 2, client_char_conf_data)==BLE_STATUS_NOT_ALLOWED){ /* ? */
     /* Radio is busy */
     if ((HAL_GetTick() - tickstart) > (10*HCI_DEFAULT_TIMEOUT_MS)) break;
   }
@@ -336,8 +360,8 @@ void GAP_DisconnectionComplete_CB(void)
  */
 void GATT_Notification_CB(uint16_t attr_handle, uint8_t attr_len, uint8_t *attr_value)
 {
-  if (attr_handle == tx_handle+1) {
-    //!!! receiveData(attr_value, attr_len); //wypisanie danych printfem
+  if (attr_handle == tx_handle+1) { //to po prostu rx_handle?
+    //receiveData(attr_value, attr_len); //wypisanie danych printfem
 	dataBLE[0] = *attr_value;
 	dataBLE[1] = *(attr_value + 1);
 	dataBLE[2] = *(attr_value + 2);
@@ -353,7 +377,7 @@ void GATT_Notification_CB(uint16_t attr_handle, uint8_t attr_len, uint8_t *attr_
  * @param  pData  Pointer to the ACI packet
  * @retval None
  */
-void user_notify(void * pData) //Parsowanie otrzymanego pakietu
+void user_notify(void * pData) /* Parsowanie otrzymanego eventu */
 {
   hci_uart_pckt *hci_pckt = pData;  
   /* obtain event packet */
@@ -363,13 +387,15 @@ void user_notify(void * pData) //Parsowanie otrzymanego pakietu
     return;
   
   switch(event_pckt->evt){
-    
+
+  /* Disconnection */
   case EVT_DISCONN_COMPLETE:
     {
       GAP_DisconnectionComplete_CB();
     }
     break;
     
+  /* Connection Complete */
   case EVT_LE_META_EVENT:
     {
       evt_le_meta_event *evt = (void *)event_pckt->data;
@@ -385,11 +411,13 @@ void user_notify(void * pData) //Parsowanie otrzymanego pakietu
     }
     break;
     
+  /* 4 rozne typy eventow EVT_VENDOR: */
   case EVT_VENDOR:
     {
       evt_blue_aci *blue_evt = (void*)event_pckt->data;
       switch(blue_evt->ecode){
         
+      /* Attribute modified (zmieniaja sie handle TX i RX) */
       case EVT_BLUE_GATT_ATTRIBUTE_MODIFIED:
         {
           if (bnrg_expansion_board == IDB05A1) {
@@ -403,16 +431,18 @@ void user_notify(void * pData) //Parsowanie otrzymanego pakietu
           
         }
         break;
-      case EVT_BLUE_GATT_NOTIFICATION:
+
+      /* GATT notification = odebrane dane */
+      case EVT_BLUE_GATT_NOTIFICATION: /* Odebrane dane */
         {
           evt_gatt_attr_notification *evt = (evt_gatt_attr_notification*)blue_evt->data;
           GATT_Notification_CB(evt->attr_handle, evt->event_data_length - 2, evt->attr_value);
           //wywoluje receive data z potrzebnymi danymi; evt->attr_value - tablica uint8_t!!
           //wskaznik na tablice, rozmiar elementu tablicy, liczba elementow do zapisu, plik na ktorym jest operacja
-          //printf("\r\nOdebrane w user_notify: ");
-          //fwrite(evt->attr_value, sizeof(uint8_t), 5, stdout);printf("\r\n");//5??
         }
         break;
+
+      /* Odczytwanie charakterystyk slave'a czyli TX i RX handles */
       case EVT_BLUE_GATT_DISC_READ_CHAR_BY_UUID_RESP:
         if(BLE_Role == CLIENT) {
           PRINTF("EVT_BLUE_GATT_DISC_READ_CHAR_BY_UUID_RESP\n");
@@ -432,6 +462,7 @@ void user_notify(void * pData) //Parsowanie otrzymanego pakietu
         }
         break;
         
+      /* Potrzebne dla mastera w UserProcess */
       case EVT_BLUE_GATT_PROCEDURE_COMPLETE:
         if(BLE_Role == CLIENT) {
           /* Wait for gatt procedure complete event trigger related to Discovery Charac by UUID */
