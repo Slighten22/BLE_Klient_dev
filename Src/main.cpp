@@ -355,8 +355,7 @@ void AskForDataTaskThread(void const * argument)
 		xTaskNotifyWait(pdFALSE, 0xFF, &notifValue, portMAX_DELAY);
 		if((notifValue&0x01) != 0x00) //Sprawdza czy notifValue zawiera wartosc ktora wyslal task supervisora
 		{
-		  //Na razie wersja tylko z jednym serverem
-		  //vTaskDelay(150); //moze byc niebezpieczne!
+		  //Na razie wersja z jednym serverem
 		  delayMicroseconds(150000);
 	      MX_BlueNRG_MS_Process();
 		  //Wyslij sygnal do taska od prezentacji ze powinien teraz sie uruchomic

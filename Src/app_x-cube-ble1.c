@@ -141,7 +141,6 @@ void MX_BlueNRG_MS_Init(void)
    */
   hci_reset();
   
-  //HAL_Delay(100);
   delayMicrosecondsBLE(100000);
   
   printf("HWver %d, FWver %d\n", hwVersion, fwVersion);
@@ -207,7 +206,7 @@ void MX_BlueNRG_MS_Init(void)
   
   if (BLE_Role == SERVER) {
     printf("SERVER: BLE Stack Initialized\n");
-    /* !!! Dodawanie glownego serwisu i charakterystyk TX i RX przez serwer! */
+    /* ! Dodawanie glownego serwisu i charakterystyk TX i RX przez serwer! */
     ret = Add_Sample_Service();
     
     if (ret == BLE_STATUS_SUCCESS)
@@ -238,7 +237,7 @@ void MX_BlueNRG_MS_Process(void)
   
   User_Process(); /* Stworzenie (nie nawiazanie) polaczenia (master) lub ustawienie wykrywalnosci (slave) i ?wlaczenie powiadomien, ?udostepnienie charakterystyk */
   	  	  	  	  /* Po nawiazaniu polaczenia nic juz sie w User_Process nie dzieje! */
-  hci_user_evt_proc(); /* Przeparsuj otrzymane pakiety i wywolaj odpowiednie funkcje */
+  hci_user_evt_proc(); /* Przeparsuj otrzymane pakiety i wywolaj odpowiednie funkcje; tu sa odebrane dane */
 
   /* USER CODE BEGIN BlueNRG_MS_Process_PostTreatment */
   
@@ -292,6 +291,22 @@ static void User_Process(void)
     {
       BSP_LED_Off(LED2); /* end of the connection and chars discovery phase */
       enableNotification(); /* Wlacz wymiane danych? */
+    }
+
+    //TODO: Client sendData
+    if (connected && end_read_tx_char_handle && end_read_rx_char_handle && notification_enabled)
+    {
+		uint8_t buf[] = {'M', 'a', 's', 't', 'e', 'r', '\r', '\n'};
+		sendData(buf, 8);
+
+    	/* Wymiana danych dla konfiguracji zdalnej slave'a:
+    	 * 1. master wysyla do slave'a info o konfiguracji w odpowiednim formacie (np. sekwencja rodzaj_sensora adres_pinu)
+    	 * 2. slave przeparsuje sobie ta konfiguracje i odczyta info jakie ma sensory i na jakich pinach
+    	 * 3. slave wywola funckje do odczytania z tych sensorow ktore dostal w konfiguracji
+    	 * 4. funkcja od odczytywania z wielu sensorow da znac (?) gdy bedzie miec juz wszystkie dane
+    	 * 5. slave wysle odpowiednia liczbe bajtow danych (obliczona wczesniej na podst. konfiguracji) masterowi
+    	 * */
+
     }
   } /* BLE_Role == CLIENT */
 }

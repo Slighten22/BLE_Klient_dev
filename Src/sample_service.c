@@ -42,7 +42,7 @@
 
 #include "app_x-cube-ble1.h"
 
-#include "main.h" //dla zmiennej uint8_t dataBLE[4] //TODO: extern uint8_t dataBLE[4]; ?
+extern uint8_t dataBLE[5];
 
 /** @addtogroup Applications
  *  @{
@@ -176,7 +176,6 @@ void Make_Connection(void)
     
     if (ret != 0){
       printf("Error while starting connection.\n");
-//      delayMicrosecondsBLE(100);
     }
     
   } else  {
@@ -274,8 +273,10 @@ void sendData(uint8_t* data_buffer, uint8_t Nb_bytes)
   if(BLE_Role == SERVER) {    
     aci_gatt_update_char_value(sampleServHandle,TXCharHandle, 0, Nb_bytes, data_buffer);    
   }
-  else {
-    aci_gatt_write_without_response(connection_handle, rx_handle+1, Nb_bytes, data_buffer);
+  else { /* Client */
+    //aci_gatt_write_without_response(connection_handle, rx_handle+1, Nb_bytes, data_buffer); /* No events are generated after this command is executed! */
+    //TODO: inna funkcja do wysylania, ktora wywola event ktory bedzie mogl przetworzyc slave
+	aci_gatt_write_charac_value(connection_handle, rx_handle+1, Nb_bytes, data_buffer);
   }
 }
 
@@ -362,11 +363,13 @@ void GATT_Notification_CB(uint16_t attr_handle, uint8_t attr_len, uint8_t *attr_
 {
   if (attr_handle == tx_handle+1) { //to po prostu rx_handle?
     //receiveData(attr_value, attr_len); //wypisanie danych printfem
-	dataBLE[0] = *attr_value;
-	dataBLE[1] = *(attr_value + 1);
-	dataBLE[2] = *(attr_value + 2);
-	dataBLE[3] = *(attr_value + 3);
-	dataBLE[4] = *(attr_value + 4);
+	  if(attr_len == 5){
+		dataBLE[0] = *attr_value;
+		dataBLE[1] = *(attr_value + 1);
+		dataBLE[2] = *(attr_value + 2);
+		dataBLE[3] = *(attr_value + 3);
+		dataBLE[4] = *(attr_value + 4);
+	  }
   }
 }
 
