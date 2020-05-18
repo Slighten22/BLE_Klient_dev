@@ -34,7 +34,7 @@ extern "C" {
 #include "stm32l4xx_nucleo.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-uint8_t dataBLE[5];
+uint8_t rcv_BLE_Data[5];
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/

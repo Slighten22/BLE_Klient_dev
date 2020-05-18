@@ -42,7 +42,7 @@
 
 #include "app_x-cube-ble1.h"
 
-extern uint8_t dataBLE[5];
+extern uint8_t rcv_BLE_Data[5];
 
 /** @addtogroup Applications
  *  @{
@@ -69,10 +69,10 @@ volatile uint8_t start_read_rx_char_handle = FALSE;
 volatile uint8_t end_read_tx_char_handle = FALSE;
 volatile uint8_t end_read_rx_char_handle = FALSE;
 
-uint16_t tx_handle;
+uint16_t tx_handle; /* Klient zna handle do TX i RX charakterystyk servera */
 uint16_t rx_handle;
 
-uint16_t sampleServHandle, TXCharHandle, RXCharHandle;
+uint16_t sampleServHandle, TXCharHandle, RXCharHandle; /* Server pamieta swoje handle do serwisu i dwoch charakterystyk */
 
 extern uint8_t bnrg_expansion_board;
 extern BLE_RoleTypeDef BLE_Role;
@@ -251,8 +251,7 @@ void startReadRXCharHandle(void)
  */
 void receiveData(uint8_t* data_buffer, uint8_t Nb_bytes)
 {
-//  BSP_LED_Toggle(LED2);
-	BSP_LED_Off(LED2);
+  //BSP_LED_Toggle(LED2);
 
   for(int i = 0; i < Nb_bytes; i++) {
     printf("%c", data_buffer[i]);
@@ -359,18 +358,25 @@ void GAP_DisconnectionComplete_CB(void)
  * @param  attr_value  Attribute value in the notification
  * @retval None
  */
-void GATT_Notification_CB(uint16_t attr_handle, uint8_t attr_len, uint8_t *attr_value)
+void GATT_Notification_CB(uint16_t attr_handle, uint8_t attr_len, uint8_t *attr_value) /* Otrzymywanie danych od servera */
 {
-  if (attr_handle == tx_handle+1) { //to po prostu rx_handle?
-    //receiveData(attr_value, attr_len); //wypisanie danych printfem
-	  if(attr_len == 5){
-		dataBLE[0] = *attr_value;
-		dataBLE[1] = *(attr_value + 1);
-		dataBLE[2] = *(attr_value + 2);
-		dataBLE[3] = *(attr_value + 3);
-		dataBLE[4] = *(attr_value + 4);
-	  }
-  }
+	if (attr_handle == tx_handle+1) {
+	    //receiveData(attr_value, attr_len); //wypisanie danych printfem
+		if(attr_len == 5){
+		rcv_BLE_Data[0] = *attr_value;
+		rcv_BLE_Data[1] = *(attr_value + 1);
+		rcv_BLE_Data[2] = *(attr_value + 2);
+		rcv_BLE_Data[3] = *(attr_value + 3);
+		rcv_BLE_Data[4] = *(attr_value + 4);
+		}
+	}
+
+//  if (attr_handle == tx_handle+1) { //czy server nadaje
+//	  int arrLen = sizeof(rcv_BLE_Data)/sizeof(rcv_BLE_Data[0]);
+//	  for(int i=0; i<attr_len && i<arrLen; i++){
+//		  rcv_BLE_Data[i] = *(attr_value + i);
+//	  }
+//  }
 }
 
 /**

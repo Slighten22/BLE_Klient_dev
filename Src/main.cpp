@@ -376,8 +376,8 @@ void PresentationTaskThread(void const * argument)
 		if((notifValue&0x02) != 0x00) //Sprawdza czy notifValue zawiera wartosc ktora wyslal task odczytu
 		{
 			//Na razie wersja tylko z jednym serverem
-			uint16_t humid = (dataBLE[0] << 8) | dataBLE[1];
-			uint16_t temp  = (dataBLE[2] << 8) | dataBLE[3];
+			uint16_t humid = (rcv_BLE_Data[0] << 8) | rcv_BLE_Data[1];
+			uint16_t temp  = (rcv_BLE_Data[2] << 8) | rcv_BLE_Data[3];
 			uint16_t humidDecimal = humid%10;
 			uint16_t tempDecimal  = temp%10;
 			temp = temp/(uint16_t)10;

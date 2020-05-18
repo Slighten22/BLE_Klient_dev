@@ -278,7 +278,7 @@ static void User_Process(void)
   if (BLE_Role == CLIENT) 
   {
     /* Start TX handle Characteristic dynamic discovery if not yet done */
-	/* z user_notify ustawiamy connected po nawiazaniu polaczenia = Skad jest wywolywane GAP_ConnectionComplete_CB */
+	/* z user_notify ustawiamy connected po nawiazaniu polaczenia = stamtad jest wywolywane GAP_ConnectionComplete_CB */
     if (connected && !end_read_tx_char_handle){
       startReadTXCharHandle();
     }
