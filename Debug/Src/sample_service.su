@@ -4,9 +4,9 @@ sample_service.c:216:6:startReadTXCharHandle	48	static
 sample_service.c:233:6:startReadRXCharHandle	48	static
 sample_service.c:252:6:receiveData	16	static
 sample_service.c:271:6:sendData	16	static
-sample_service.c:288:6:enableNotification	24	static
-sample_service.c:308:6:Attribute_Modified_CB	0	static
-sample_service.c:324:6:GAP_ConnectionComplete_CB	24	static
-sample_service.c:341:6:GAP_DisconnectionComplete_CB	8	static
-sample_service.c:362:6:GATT_Notification_CB	0	static
-sample_service.c:383:6:user_notify	0	static
+sample_service.c:290:6:enableNotification	24	static
+sample_service.c:310:6:Attribute_Modified_CB	0	static
+sample_service.c:326:6:GAP_ConnectionComplete_CB	24	static
+sample_service.c:343:6:GAP_DisconnectionComplete_CB	8	static
+sample_service.c:364:6:GATT_Notification_CB	0	static
+sample_service.c:385:6:user_notify	0	static

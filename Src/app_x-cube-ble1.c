@@ -296,8 +296,12 @@ static void User_Process(void)
     //TODO: Client sendData
     if (connected && end_read_tx_char_handle && end_read_rx_char_handle && notification_enabled)
     {
-		uint8_t buf[] = {'M', 'a', 's', 't', 'e', 'r', '\r', '\n'};
-		sendData(buf, 8);
+		static int counter = 0;
+    	uint8_t buf[] = {'M', 'a', 's', 't', 'e', 'r', '0', '0', '\r', '\n'};
+		buf[7] = counter%10 + '0'; //kod cyfry w ASCII
+    	buf[6] = (counter/10)%10 + '0';
+		sendData(buf, sizeof(buf)); //TODO: cos nie tak!
+		counter++;
 
     	/* Wymiana danych dla konfiguracji zdalnej slave'a:
     	 * 1. master wysyla do slave'a info o konfiguracji w odpowiednim formacie (np. sekwencja rodzaj_sensora adres_pinu)

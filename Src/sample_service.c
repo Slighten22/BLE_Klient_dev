@@ -69,10 +69,10 @@ volatile uint8_t start_read_rx_char_handle = FALSE;
 volatile uint8_t end_read_tx_char_handle = FALSE;
 volatile uint8_t end_read_rx_char_handle = FALSE;
 
-uint16_t tx_handle;
+uint16_t tx_handle; /* Klient zna handle do charakterystyk servera */
 uint16_t rx_handle;
 
-uint16_t sampleServHandle, TXCharHandle, RXCharHandle;
+uint16_t sampleServHandle, TXCharHandle, RXCharHandle; /* Server zna handle do swojego serwisu i swoich charakterystyk */
 
 extern uint8_t bnrg_expansion_board;
 extern BLE_RoleTypeDef BLE_Role;
@@ -161,8 +161,8 @@ void Make_Connection(void)
     Conn_Interval_Max, Conn_Latency, Supervision_Timeout, Conn_Len_Min, Conn_Len_Max    
     */
     ret = aci_gap_create_connection(
-    		SCAN_P, /* 10,24 msec = Time interval from when the Controller started its last scan until it begins the subsequent scan = how long to wait between scans (for a number N, Time = N x 0.625 msec) */
-    		SCAN_L, /* 10,24 msec = Scan Window: amount of time for the duration of the LE scan = how long to scan (for a number N, Time = N x 0.625 msec) */
+    		SCAN_P, /* 10240 msec = Time interval from when the Controller started its last scan until it begins the subsequent scan = how long to wait between scans (for a number N, Time = N x 0.625 msec) */
+    		SCAN_L, /* 10240 msec = Scan Window: amount of time for the duration of the LE scan = how long to scan (for a number N, Time = N x 0.625 msec) */
 			PUBLIC_ADDR, /* Peer_Address_Type */
 			bdaddr, /* Peer_Address */
 			PUBLIC_ADDR, /* Own_Address_Type */
@@ -274,9 +274,11 @@ void sendData(uint8_t* data_buffer, uint8_t Nb_bytes)
     aci_gatt_update_char_value(sampleServHandle,TXCharHandle, 0, Nb_bytes, data_buffer);    
   }
   else { /* Client */
-    //aci_gatt_write_without_response(connection_handle, rx_handle+1, Nb_bytes, data_buffer); /* No events are generated after this command is executed! */
+    aci_gatt_write_without_response(connection_handle, rx_handle+1, Nb_bytes, data_buffer); /* No events are generated after this command is executed! */
     //TODO: inna funkcja do wysylania, ktora wywola event ktory bedzie mogl przetworzyc slave
-	aci_gatt_write_charac_value(connection_handle, rx_handle+1, Nb_bytes, data_buffer);
+//	aci_gatt_write_charac_value(connection_handle, rx_handle+1, Nb_bytes, data_buffer);
+//	aci_gatt_write_long_charac_val(connection_handle, rx_handle+1, 0, Nb_bytes, data_buffer);
+//	aci_gatt_write_charac_reliable(connection_handle, rx_handle+1, 0, Nb_bytes, data_buffer);
   }
 }
 
