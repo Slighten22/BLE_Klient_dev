@@ -297,10 +297,11 @@ static void User_Process(void)
     if (connected && end_read_tx_char_handle && end_read_rx_char_handle && notification_enabled)
     {
 		static int counter = 0;
-    	uint8_t buf[] = {'M', 'a', 's', 't', 'e', 'r', '0', '0', '\r', '\n'};
-		buf[7] = counter%10 + '0'; //kod cyfry w ASCII
-    	buf[6] = (counter/10)%10 + '0';
-		sendData(buf, sizeof(buf)); //TODO: cos nie tak!
+    	uint8_t buf[] = {'M', 'a', 's', 't', 'e', 'r', '0', '0', '0', '\r', '\n'};
+		buf[8] = counter%10 + '0'; //kod cyfry w ASCII
+    	buf[7] = (counter/10)%10 + '0';
+    	buf[6] = (counter/100)%10 + '0';
+		sendData(buf, sizeof(buf)); //slave musi znac staly rozmiar wiadomosci - inaczej sie gubi w trakcie odbierania
 		counter++;
 
     	/* Wymiana danych dla konfiguracji zdalnej slave'a:
@@ -310,7 +311,6 @@ static void User_Process(void)
     	 * 4. funkcja od odczytywania z wielu sensorow da znac (?) gdy bedzie miec juz wszystkie dane
     	 * 5. slave wysle odpowiednia liczbe bajtow danych (obliczona wczesniej na podst. konfiguracji) masterowi
     	 * */
-
     }
   } /* BLE_Role == CLIENT */
 }

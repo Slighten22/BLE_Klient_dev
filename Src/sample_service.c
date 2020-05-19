@@ -42,7 +42,7 @@
 
 #include "app_x-cube-ble1.h"
 
-extern uint8_t dataBLE[5];
+extern uint8_t dataBLE[];
 
 /** @addtogroup Applications
  *  @{
@@ -273,7 +273,7 @@ void sendData(uint8_t* data_buffer, uint8_t Nb_bytes)
   if(BLE_Role == SERVER) {    
     aci_gatt_update_char_value(sampleServHandle,TXCharHandle, 0, Nb_bytes, data_buffer);    
   }
-  else { /* Client */
+  else { /* Klient do serwera: max 20 bajtow(?) na raz */
     aci_gatt_write_without_response(connection_handle, rx_handle+1, Nb_bytes, data_buffer); /* No events are generated after this command is executed! */
     //TODO: inna funkcja do wysylania, ktora wywola event ktory bedzie mogl przetworzyc slave
 //	aci_gatt_write_charac_value(connection_handle, rx_handle+1, Nb_bytes, data_buffer);

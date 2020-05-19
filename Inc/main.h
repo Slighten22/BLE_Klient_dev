@@ -34,7 +34,8 @@ extern "C" {
 #include "stm32l4xx_nucleo.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-uint8_t dataBLE[5];
+#include "bluenrg_types.h"
+uint8_t dataBLE[VARIABLE_SIZE];
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/
