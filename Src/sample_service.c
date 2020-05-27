@@ -251,8 +251,7 @@ void startReadRXCharHandle(void)
  */
 void receiveData(uint8_t* data_buffer, uint8_t Nb_bytes)
 {
-//  BSP_LED_Toggle(LED2);
-	BSP_LED_Off(LED2);
+  BSP_LED_Off(LED2);
 
   for(int i = 0; i < Nb_bytes; i++) {
     printf("%c", data_buffer[i]);
@@ -273,12 +272,10 @@ void sendData(uint8_t* data_buffer, uint8_t Nb_bytes)
   if(BLE_Role == SERVER) {    
     aci_gatt_update_char_value(sampleServHandle,TXCharHandle, 0, Nb_bytes, data_buffer);    
   }
-  else { /* Klient do serwera: max 20 bajtow(?) na raz */
-    aci_gatt_write_without_response(connection_handle, rx_handle+1, Nb_bytes, data_buffer); /* No events are generated after this command is executed! */
-    //TODO: inna funkcja do wysylania, ktora wywola event ktory bedzie mogl przetworzyc slave
-//	aci_gatt_write_charac_value(connection_handle, rx_handle+1, Nb_bytes, data_buffer);
-//	aci_gatt_write_long_charac_val(connection_handle, rx_handle+1, 0, Nb_bytes, data_buffer);
-//	aci_gatt_write_charac_reliable(connection_handle, rx_handle+1, 0, Nb_bytes, data_buffer);
+  else { /* Klient do serwera */
+    aci_gatt_write_without_response(connection_handle, rx_handle+1, Nb_bytes, data_buffer); /* Max 20 bajtow na jedno wywolanie funkcji, serwer nie potwierdza otrzymania pakietu */
+	//aci_gatt_write_charac_value(connection_handle, rx_handle+1, Nb_bytes, data_buffer); /* The client provides a handle and the contents of the value (up to ATT_MTU-3 bytes, because the handle and the ATT operation code are included in the packet with the data) and the server will !acknowledge the write operation with a response! */
+	//aci_gatt_write_long_charac_val(connection_handle, rx_handle+1, 0, Nb_bytes, data_buffer); /* This permits a client to write more than ATT_MTU-3 bytes of data into a server’s characteristic value or descriptor. It works by queueing several prepare write operations, each of which includes an offset and the data itself, and then finally writing them all atomically with an execute write operation. */
   }
 }
 
@@ -363,14 +360,9 @@ void GAP_DisconnectionComplete_CB(void)
  */
 void GATT_Notification_CB(uint16_t attr_handle, uint8_t attr_len, uint8_t *attr_value)
 {
-  if (attr_handle == tx_handle+1) { //to po prostu rx_handle?
-    //receiveData(attr_value, attr_len); //wypisanie danych printfem
-	  if(attr_len == 5){
-		dataBLE[0] = *attr_value;
-		dataBLE[1] = *(attr_value + 1);
-		dataBLE[2] = *(attr_value + 2);
-		dataBLE[3] = *(attr_value + 3);
-		dataBLE[4] = *(attr_value + 4);
+  if (attr_handle == tx_handle+1) {
+	  for(int i=0; i<attr_len && i<20; i++){
+		  dataBLE[i] = *(attr_value+i);
 	  }
   }
 }
@@ -438,12 +430,11 @@ void user_notify(void * pData) /* Parsowanie otrzymanego eventu */
         break;
 
       /* GATT notification = odebrane dane */
-      case EVT_BLUE_GATT_NOTIFICATION: /* Odebrane dane */
+      case EVT_BLUE_GATT_NOTIFICATION:
         {
           evt_gatt_attr_notification *evt = (evt_gatt_attr_notification*)blue_evt->data;
           GATT_Notification_CB(evt->attr_handle, evt->event_data_length - 2, evt->attr_value);
-          //wywoluje receive data z potrzebnymi danymi; evt->attr_value - tablica uint8_t!!
-          //wskaznik na tablice, rozmiar elementu tablicy, liczba elementow do zapisu, plik na ktorym jest operacja
+          /* a w callbacku odbior otrzymanych danych do jakiejs tablicy */
         }
         break;
 

@@ -47,9 +47,11 @@ typedef enum{
 #define bitClear(value, bit)	((value) &= ~(1UL << (bit)))
 #define bitWrite(value, bit, bitvalue) (bitvalue ? bitSet(value, bit) : bitClear(value, bit))
 //Port for one-wire communication
-#define oneWirePort	((GPIO_TypeDef *) GPIOA_BASE) //GPIOA
+#define oneWirePort	 ((GPIO_TypeDef *) GPIOA_BASE) //GPIOA
 //Delay time between following reads in ms
-#define delayTime	3000
+#define delayTime	 3000
+//Sensor name max length (in characters)
+#define MAX_NAME_LEN 14
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -71,7 +73,8 @@ uint8_t sensorObjectCount;
 uint8_t whichSensorWrites;
 uint8_t whichLoopIteration;
 char uartData[50];
-
+uint8_t sentConfigurationMsg[20];
+bool newConfig;
 //Bez DM-a i Slave'ow
 /* USER CODE END PV */
 
@@ -87,6 +90,7 @@ void PresentationTaskThread(void const * argument);
 void CommunicationTaskThread(void const * argument);
 void presentDataFromSensor(uint8_t which);
 void delayMicroseconds(uint32_t us);
+void sendNewConfig(uint8_t sensorType, uint16_t interval, uint8_t *name);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -126,6 +130,8 @@ int main(void)
   MX_USART3_UART_Init();
   MX_BlueNRG_MS_Init();
   /* USER CODE BEGIN 2 */
+
+  sendNewConfig(DHT22, 5, (uint8_t *)"Pokoj1");
 
   /* USER CODE END 2 */
 
@@ -357,6 +363,7 @@ void AskForDataTaskThread(void const * argument)
 		{
 		  //Na razie wersja z jednym serverem
 		  delayMicroseconds(150000);
+
 	      MX_BlueNRG_MS_Process();
 		  //Wyslij sygnal do taska od prezentacji ze powinien teraz sie uruchomic
 		  xTaskNotify(presentationTaskHandle, 0x02, eSetBits);
@@ -375,16 +382,20 @@ void PresentationTaskThread(void const * argument)
 		xTaskNotifyWait(pdFALSE, 0xFF, &notifValue, portMAX_DELAY);
 		if((notifValue&0x02) != 0x00) //Sprawdza czy notifValue zawiera wartosc ktora wyslal task odczytu
 		{
-			//Na razie wersja tylko z jednym serverem
-			uint16_t humid = (dataBLE[0] << 8) | dataBLE[1];
-			uint16_t temp  = (dataBLE[2] << 8) | dataBLE[3];
+			//Format: nazwa_czujnika '\0' dane
+			char name[MAX_NAME_LEN]; int i=0;
+			for(i=0; dataBLE[i] != '\0' && i<MAX_NAME_LEN; i++){
+				name[i] = dataBLE[i];
+			}
+			printf("\r\nCzujnik %s\r\n", name);
+			uint16_t humid = (dataBLE[i+1] << 8) | dataBLE[i+2];
+			uint16_t temp  = (dataBLE[i+3] << 8) | dataBLE[i+4];
 			uint16_t humidDecimal = humid%10;
 			uint16_t tempDecimal  = temp%10;
 			temp = temp/(uint16_t)10;
 			humid= humid/(uint16_t)10;
 			//xQueueSend(msgQueueHandle, (uint8_t *)uartData, 100);
-			//!!!!
-			printf("\r\nTemperatura\t %hu.%huC\r\nWilgotnosc\t %hu.%hu%%\r\n",
+			printf("Temperatura\t %hu.%huC\r\nWilgotnosc\t %hu.%hu%%\r\n",
 					  temp, tempDecimal, humid, humidDecimal);
 		}
 	}
@@ -419,8 +430,22 @@ void delayMicroseconds(uint32_t us){
 	//previously there was tmp < 800 giving 3200 processor cycles, each lasting 12.5 ns = 40 us delay
 	//UINT_MAX	Maximum value for a variable of type unsigned int	4,294,967,295 (0xffffffff)
 }
-/* USER CODE END 7 */
 
+void sendNewConfig(uint8_t sensorType, uint16_t interval, uint8_t *name){
+	/* Format wiadomosci: <typ_sensora:1B> <interwal:2B> <nazwa:max.15B> */
+	sentConfigurationMsg[0] = sensorType;
+	sentConfigurationMsg[1] = interval/256;
+	sentConfigurationMsg[2] = interval%256;
+	int i = 0;
+	for(i=3; name[i-3] != '\0' && i<20; i++){
+		sentConfigurationMsg[i] = name[i-3];
+	}
+	if(i < 20){
+		sentConfigurationMsg[i] = '\0';
+	}
+	newConfig = true;
+}
+/* USER CODE END 7 */
 
 /**
   * @brief  Period elapsed callback in non blocking mode

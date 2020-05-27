@@ -36,6 +36,11 @@ extern "C" {
 /* USER CODE BEGIN Includes */
 #include "bluenrg_types.h"
 uint8_t dataBLE[VARIABLE_SIZE];
+
+typedef enum {
+	DHT22
+	//... inne typy sensorow
+} SensorType;
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/

@@ -41,7 +41,11 @@
 #include "bluenrg_hal_aci.h"
 
 /* USER CODE BEGIN Includes */
-
+#include <string.h>
+#include <stdbool.h>
+extern bool newConfig;
+extern uint8_t sentConfigurationMsg[20];
+extern uint8_t whichLoopIteration;
 /* USER CODE END Includes */
 
 /* Private defines -----------------------------------------------------------*/
@@ -293,16 +297,14 @@ static void User_Process(void)
       enableNotification(); /* Wlacz wymiane danych? */
     }
 
-    //TODO: Client sendData
+    /* Klient wysyla dane serwerowi */
     if (connected && end_read_tx_char_handle && end_read_rx_char_handle && notification_enabled)
     {
-		static int counter = 0;
-    	uint8_t buf[] = {'M', 'a', 's', 't', 'e', 'r', '0', '0', '0', '\r', '\n'};
-		buf[8] = counter%10 + '0'; //kod cyfry w ASCII
-    	buf[7] = (counter/10)%10 + '0';
-    	buf[6] = (counter/100)%10 + '0';
-		sendData(buf, sizeof(buf)); //slave musi znac staly rozmiar wiadomosci - inaczej sie gubi w trakcie odbierania
-		counter++;
+		if(newConfig == true && whichLoopIteration > 8){
+		  newConfig = false; //TODO: problem - wiadomosc z konfiguracja moze byc gubiona! rozwiazanie - ACK?
+		  sendData(sentConfigurationMsg, sizeof(sentConfigurationMsg));
+		}
+		/* Wyslij konfiguracje w odpowiednim formacie np sekwencja postaci typ sensora, adres pinu, ile bajtow danych sie spodziewamy */
 
     	/* Wymiana danych dla konfiguracji zdalnej slave'a:
     	 * 1. master wysyla do slave'a info o konfiguracji w odpowiednim formacie (np. sekwencja rodzaj_sensora adres_pinu)
