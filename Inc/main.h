@@ -36,6 +36,7 @@ extern "C" {
 /* USER CODE BEGIN Includes */
 #include "bluenrg_types.h"
 uint8_t dataBLE[VARIABLE_SIZE];
+#define MSG_LEN 20
 
 typedef enum {
 	DHT22

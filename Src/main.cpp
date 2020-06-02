@@ -49,9 +49,9 @@ typedef enum{
 //Port for one-wire communication
 #define oneWirePort	 ((GPIO_TypeDef *) GPIOA_BASE) //GPIOA
 //Delay time between following reads in ms
-#define delayTime	 3000
+#define delayTime	 1000
 //Sensor name max length (in characters)
-#define MAX_NAME_LEN 14
+#define MAX_NAME_LEN 12
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -75,7 +75,10 @@ uint8_t whichLoopIteration;
 char uartData[50];
 uint8_t sentConfigurationMsg[20];
 bool newConfig;
-//Bez DM-a i Slave'ow
+
+
+uint8_t counter = 0;
+extern volatile int connected;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -130,8 +133,6 @@ int main(void)
   MX_USART3_UART_Init();
   MX_BlueNRG_MS_Init();
   /* USER CODE BEGIN 2 */
-
-  sendNewConfig(DHT22, 5, (uint8_t *)"Pokoj1");
 
   /* USER CODE END 2 */
 
@@ -338,7 +339,7 @@ void StartDefaultTask(void const * argument)
   /* Infinite loop */
   for(;;)
   {
-	  if(whichLoopIteration++ > 7){
+	  if(whichLoopIteration++ > 7){ //TODO: sprawdzic connected
 		  //Wyslij sygnal do taska odczytu ze powinien teraz sie uruchomic
 		  xTaskNotify(askForDataTaskHandle, 0x01, eSetBits);
 	  }
@@ -364,6 +365,15 @@ void AskForDataTaskThread(void const * argument)
 		  //Na razie wersja z jednym serverem
 		  delayMicroseconds(150000);
 
+		  //Wyslanie danych konfiguracji
+		  if(counter == 0){
+			  sendNewConfig(DHT22, 5, (uint8_t *)"Pokoj1");
+		  }
+		  if(counter == 4){
+			  sendNewConfig(DHT22, 3, (uint8_t *)"Kuchnia1");
+		  }
+		  counter++;
+
 	      MX_BlueNRG_MS_Process();
 		  //Wyslij sygnal do taska od prezentacji ze powinien teraz sie uruchomic
 		  xTaskNotify(presentationTaskHandle, 0x02, eSetBits);
@@ -384,6 +394,7 @@ void PresentationTaskThread(void const * argument)
 		{
 			//Format: nazwa_czujnika '\0' dane
 			char name[MAX_NAME_LEN]; int i=0;
+			memset(name, 0x00, sizeof(name));
 			for(i=0; dataBLE[i] != '\0' && i<MAX_NAME_LEN; i++){
 				name[i] = dataBLE[i];
 			}
@@ -432,15 +443,18 @@ void delayMicroseconds(uint32_t us){
 }
 
 void sendNewConfig(uint8_t sensorType, uint16_t interval, uint8_t *name){
-	/* Format wiadomosci: <typ_sensora:1B> <interwal:2B> <nazwa:max.15B> */
+	/* Format wiadomosci: <typ_sensora:1B> <interwal:2B> <nazwa:max.14B> */
+	for(int i=0; i<MSG_LEN; i++){
+		sentConfigurationMsg[i] = '\0';
+	}
 	sentConfigurationMsg[0] = sensorType;
 	sentConfigurationMsg[1] = interval/256;
 	sentConfigurationMsg[2] = interval%256;
 	int i = 0;
-	for(i=3; name[i-3] != '\0' && i<20; i++){
+	for(i=3; name[i-3] != '\0' && i<MSG_LEN; i++){
 		sentConfigurationMsg[i] = name[i-3];
 	}
-	if(i < 20){
+	if(i < MSG_LEN){
 		sentConfigurationMsg[i] = '\0';
 	}
 	newConfig = true;
