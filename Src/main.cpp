@@ -75,8 +75,7 @@ uint8_t whichLoopIteration;
 char uartData[50];
 uint8_t sentConfigurationMsg[20];
 bool newConfig;
-
-
+bool newData;
 uint8_t counter = 0;
 extern volatile int connected;
 /* USER CODE END PV */
@@ -375,8 +374,12 @@ void AskForDataTaskThread(void const * argument)
 		  counter++;
 
 	      MX_BlueNRG_MS_Process();
-		  //Wyslij sygnal do taska od prezentacji ze powinien teraz sie uruchomic
-		  xTaskNotify(presentationTaskHandle, 0x02, eSetBits);
+
+	      if(newData == true){
+	    	  newData = false;
+	    	  //Wyslij sygnal do taska od prezentacji ze powinien teraz sie uruchomic
+	    	  xTaskNotify(presentationTaskHandle, 0x02, eSetBits);
+	      }
 		}
 	}
 }

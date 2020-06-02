@@ -41,8 +41,11 @@
 #include "bluenrg_hal_aci.h"
 
 #include "app_x-cube-ble1.h"
+#include <stdbool.h>
 
 extern uint8_t dataBLE[];
+extern bool newData;
+extern uint8_t whichLoopIteration;
 
 /** @addtogroup Applications
  *  @{
@@ -360,10 +363,13 @@ void GAP_DisconnectionComplete_CB(void)
  */
 void GATT_Notification_CB(uint16_t attr_handle, uint8_t attr_len, uint8_t *attr_value)
 {
-  if (attr_handle == tx_handle+1) {
+	/* Odebrane dane od servera */
+    if (attr_handle == tx_handle+1) {
 	  for(int i=0; i<attr_len && i<20; i++){
 		  dataBLE[i] = *(attr_value+i);
 	  }
+	  if(whichLoopIteration > 10)
+		  newData = true;
   }
 }
 
