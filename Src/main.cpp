@@ -77,6 +77,7 @@ void CommunicationTaskThread(void const * argument);
 void presentDataFromSensor(uint8_t which);
 void delayMicroseconds(uint32_t us);
 void sendNewConfig(uint8_t sensorType, uint16_t interval, uint8_t *name);
+bool checkIfTempSensorReadoutCorrect(uint32_t dataBits, uint8_t checksumBits);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -382,15 +383,19 @@ void PresentationTaskThread(void const * argument)
 				name[i] = dataBLE[i];
 			}
 			printf("\r\nCzujnik %s\r\n", name);
-			uint16_t humid = (dataBLE[i+1] << 8) | dataBLE[i+2];
-			uint16_t temp  = (dataBLE[i+3] << 8) | dataBLE[i+4];
-			uint16_t humidDecimal = humid%10;
-			uint16_t tempDecimal  = temp%10;
-			temp = temp/(uint16_t)10;
-			humid= humid/(uint16_t)10;
-			//xQueueSend(msgQueueHandle, (uint8_t *)uartData, 100);
-			printf("Temperatura\t %hu.%huC\r\nWilgotnosc\t %hu.%hu%%\r\n",
-					  temp, tempDecimal, humid, humidDecimal);
+			uint32_t dataBits = (dataBLE[i+1] << 24) + (dataBLE[i+2] << 16) + (dataBLE[i+3] << 8) + (dataBLE[i+4]);
+			uint8_t checksumBits = dataBLE[i+5];
+			if(checkIfTempSensorReadoutCorrect(dataBits, checksumBits)){
+				uint16_t humid = (dataBLE[i+1] << 8) | dataBLE[i+2];
+				uint16_t temp  = (dataBLE[i+3] << 8) | dataBLE[i+4];
+				uint16_t humidDecimal = humid%10;
+				uint16_t tempDecimal  = temp%10;
+				temp = temp/(uint16_t)10;
+				humid= humid/(uint16_t)10;
+				//xQueueSend(msgQueueHandle, (uint8_t *)uartData, 100);
+				printf("Temperatura\t %hu.%huC\r\nWilgotnosc\t %hu.%hu%%\r\n",
+						  temp, tempDecimal, humid, humidDecimal);
+			}
 		}
 	}
 }
@@ -439,6 +444,13 @@ void sendNewConfig(uint8_t sensorType, uint16_t interval, uint8_t *name){
 		sentConfigurationMsg[i] = '\0';
 	}
 	newConfig = true;
+}
+
+bool checkIfTempSensorReadoutCorrect(uint32_t dataBits, uint8_t checksumBits){
+	uint8_t value = ((dataBits >> 24) & 0xFF) + ((dataBits >> 16) & 0xFF) + ((dataBits >> 8) & 0xFF) + (dataBits & 0xFF);
+	if(value == checksumBits)
+		return true;
+	return false;
 }
 /* USER CODE END 7 */
 
