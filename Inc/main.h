@@ -37,6 +37,10 @@ extern "C" {
 #include "bluenrg_types.h"
 uint8_t dataBLE[VARIABLE_SIZE];
 #define MSG_LEN 20
+//Delay time between following reads in ms
+#define delayTime 3000
+//Sensor name max length (in characters)
+#define MAX_NAME_LEN 12
 
 typedef enum {
 	DHT22

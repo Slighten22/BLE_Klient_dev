@@ -72,6 +72,8 @@ volatile uint8_t start_read_rx_char_handle = FALSE;
 volatile uint8_t end_read_tx_char_handle = FALSE;
 volatile uint8_t end_read_rx_char_handle = FALSE;
 
+volatile uint8_t client_ready = FALSE;
+
 uint16_t tx_handle; /* Klient zna handle do charakterystyk servera */
 uint16_t rx_handle;
 
@@ -364,12 +366,13 @@ void GAP_DisconnectionComplete_CB(void)
 void GATT_Notification_CB(uint16_t attr_handle, uint8_t attr_len, uint8_t *attr_value)
 {
 	/* Odebrane dane od servera */
-    if (attr_handle == tx_handle+1) {
+    if (attr_handle == tx_handle+1 && attr_len != 0 && *attr_value != '\0') {
 	  for(int i=0; i<attr_len && i<20; i++){
 		  dataBLE[i] = *(attr_value+i);
 	  }
-	  if(whichLoopIteration > 10)
+	  if(client_ready){
 		  newData = true;
+	  }
   }
 }
 

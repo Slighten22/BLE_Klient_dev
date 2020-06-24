@@ -40,13 +40,13 @@
 #include "bluenrg_gatt_aci.h"
 #include "bluenrg_hal_aci.h"
 
-/* USER CODE BEGIN Includes */
+/* USER CODE BEGIN */
 #include <string.h>
 #include <stdbool.h>
 extern bool newConfig;
 extern uint8_t sentConfigurationMsg[20];
 extern uint8_t whichLoopIteration;
-/* USER CODE END Includes */
+/* USER CODE END */
 
 /* Private defines -----------------------------------------------------------*/
 /**
@@ -74,6 +74,7 @@ static volatile uint8_t user_button_pressed = 0;
 extern volatile uint8_t set_connectable;
 extern volatile int     connected;
 extern volatile uint8_t notification_enabled;
+extern volatile uint8_t client_ready;
 
 extern volatile uint8_t end_read_tx_char_handle;
 extern volatile uint8_t end_read_rx_char_handle;
@@ -107,11 +108,9 @@ void print_csv_time(void){
 void MX_BlueNRG_MS_Init(void)
 {
   /* USER CODE BEGIN SV */ 
-
   /* USER CODE END SV */
   
   /* USER CODE BEGIN BlueNRG_MS_Init_PreTreatment */
-  
   /* USER CODE END BlueNRG_MS_Init_PreTreatment */
 
   /* Initialize the peripherals and the BLE Stack */
@@ -239,9 +238,11 @@ void MX_BlueNRG_MS_Process(void)
   
   /* USER CODE END BlueNRG_MS_Process_PreTreatment */
   
-  User_Process(); /* Stworzenie (nie nawiazanie) polaczenia (master) lub ustawienie wykrywalnosci (slave) i ?wlaczenie powiadomien, ?udostepnienie charakterystyk */
-  	  	  	  	  /* Po nawiazaniu polaczenia nic juz sie w User_Process nie dzieje! */
-  hci_user_evt_proc(); /* Przeparsuj otrzymane pakiety i wywolaj odpowiednie funkcje; tu sa odebrane dane */
+  /* Stworzenie (nie nawiazanie) polaczenia (master) lub ustawienie wykrywalnosci (slave) i ?wlaczenie powiadomien, ?udostepnienie charakterystyk */
+  /* Po nawiazaniu polaczenia nic juz sie w User_Process nie dzieje! */
+  User_Process();
+  /* Przeparsuj otrzymane pakiety i wywolaj odpowiednie funkcje; tu sa odebrane dane */
+  hci_user_evt_proc();
 
   /* USER CODE BEGIN BlueNRG_MS_Process_PostTreatment */
   
@@ -298,10 +299,10 @@ static void User_Process(void)
     }
 
     /* Klient wysyla dane serwerowi */
-    if (connected && end_read_tx_char_handle && end_read_rx_char_handle && notification_enabled)
+    if(client_ready)
     {
-		if(newConfig == true && whichLoopIteration > 8){
-		  newConfig = false; //TODO: problem - wiadomosc z konfiguracja moze byc gubiona! rozwiazanie - ACK?
+		if(newConfig == true){
+		  newConfig = false; //TODO: problem - wiadomosc z konfiguracja moze byc gubiona, nie sprawdzam tego! rozwiazanie - ACK?
 		  sendData(sentConfigurationMsg, sizeof(sentConfigurationMsg));
 		}
 		/* Wyslij konfiguracje w odpowiednim formacie np sekwencja postaci typ sensora, adres pinu, ile bajtow danych sie spodziewamy */
@@ -313,6 +314,11 @@ static void User_Process(void)
     	 * 4. funkcja od odczytywania z wielu sensorow da znac (?) gdy bedzie miec juz wszystkie dane
     	 * 5. slave wysle odpowiednia liczbe bajtow danych (obliczona wczesniej na podst. konfiguracji) masterowi
     	 * */
+    }
+
+    if (connected && end_read_tx_char_handle && end_read_rx_char_handle && notification_enabled)
+    {
+    	client_ready = true;
     }
   } /* BLE_Role == CLIENT */
 }
