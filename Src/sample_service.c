@@ -153,12 +153,16 @@ void Make_Connection(void)
 {  
   tBleStatus ret;
   
-  
   if(BLE_Role == CLIENT) {
     
     printf("Client Create Connection\n");
-    tBDAddr bdaddr = {0xaa, 0x00, 0x00, 0xE1, 0x80, 0x02}; /* Adres servera */
     
+
+    //TODO nowy adres servera do polaczenia
+//    tBDAddr bdaddr = {0xaa, 0x00, 0x00, 0xE1, 0x80, 0x02}; /* Adres servera */
+    tBDAddr bdaddr = {0xcc, 0x00, 0x00, 0xE1, 0x80, 0x02}; /* Adres servera */
+
+
     BSP_LED_On(LED2); //To indicate the start of the connection and discovery phase
     
     /*
@@ -224,7 +228,8 @@ void startReadTXCharHandle(void)
   {    
     PRINTF("Start reading TX Char Handle\n");
     
-    const uint8_t charUuid128_TX[16] = {0x66,0x9a,0x0c,0x20,0x00,0x08,0x96,0x9e,0xe2,0x11,0x9e,0xb1,0xe1,0xf2,0x73,0xd9};
+    //TODO inne charakterystyki TX, RX (roznica na 3. bajcie)
+    const uint8_t charUuid128_TX[16] = {0x66,0x9a,0x0c,0x20,0x00,0x08,0x96,0x9e,0xe2,0x11,0x9e,0xb1,/*0xe1*/0xe4,0xf2,0x73,0xd9};
     aci_gatt_disc_charac_by_uuid(connection_handle, 0x0001, 0xFFFF, UUID_TYPE_128, charUuid128_TX);
     start_read_tx_char_handle = TRUE;
   }
@@ -241,7 +246,8 @@ void startReadRXCharHandle(void)
   {
     PRINTF("Start reading RX Char Handle\n");
     
-    const uint8_t charUuid128_RX[16] = {0x66,0x9a,0x0c,0x20,0x00,0x08,0x96,0x9e,0xe2,0x11,0x9e,0xb1,0xe2,0xf2,0x73,0xd9};
+    //TODO inne charakterystyki TX, RX (roznica na 3. bajcie)
+    const uint8_t charUuid128_RX[16] = {0x66,0x9a,0x0c,0x20,0x00,0x08,0x96,0x9e,0xe2,0x11,0x9e,0xb1,/*0xe2*/0xe5,0xf2,0x73,0xd9};
     aci_gatt_disc_charac_by_uuid(connection_handle, 0x0001, 0xFFFF, UUID_TYPE_128, charUuid128_RX);
     start_read_rx_char_handle = TRUE;
   }
@@ -438,7 +444,7 @@ void user_notify(void * pData) /* Parsowanie otrzymanego eventu */
         }
         break;
 
-      /* GATT notification = odebrane dane */
+      /* GATT notification = odebrane dane od servera */
       case EVT_BLUE_GATT_NOTIFICATION:
         {
           evt_gatt_attr_notification *evt = (evt_gatt_attr_notification*)blue_evt->data;
@@ -447,7 +453,7 @@ void user_notify(void * pData) /* Parsowanie otrzymanego eventu */
         }
         break;
 
-      /* Odczytwanie charakterystyk slave'a czyli TX i RX handles */
+      /* Odczytwanie charakterystyk slave'a czyli poznawanie TX i RX handles */
       case EVT_BLUE_GATT_DISC_READ_CHAR_BY_UUID_RESP:
         if(BLE_Role == CLIENT) {
           PRINTF("EVT_BLUE_GATT_DISC_READ_CHAR_BY_UUID_RESP\n");

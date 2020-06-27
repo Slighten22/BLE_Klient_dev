@@ -155,7 +155,7 @@ void MX_BlueNRG_MS_Init(void)
   /* Skopiowanie i wpisanie adresu urzadzenia bdaddr */
   if (BLE_Role == CLIENT) {
     BLUENRG_memcpy(bdaddr, CLIENT_BDADDR, sizeof(CLIENT_BDADDR));
-  } else {
+  } else { /* TODO: rozne adresy roznych serverow */
     BLUENRG_memcpy(bdaddr, SERVER_BDADDR, sizeof(SERVER_BDADDR));
   }
   ret = aci_hal_write_config_data(CONFIG_DATA_PUBADDR_OFFSET,
@@ -207,7 +207,7 @@ void MX_BlueNRG_MS_Init(void)
     printf("BLE Stack Initialized.\n");
   }
   
-  if (BLE_Role == SERVER) {
+  if (BLE_Role == SERVER) { /* TODO: rozroznic id serwisu i charakterystyk roznych serverow */
     printf("SERVER: BLE Stack Initialized\n");
     /* ! Dodawanie glownego serwisu i charakterystyk TX i RX przez serwer! */
     ret = Add_Sample_Service();

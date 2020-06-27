@@ -350,7 +350,7 @@ void AskForDataTaskThread(void const * argument)
 			  sendNewConfig(DHT22, 4, (uint8_t *)"Pokoj1");
 		  }
 		  if(counter == 4){
-			  sendNewConfig(DHT22, 3, (uint8_t *)"Kuchnia1");
+			  sendNewConfig(DHT22, 4, (uint8_t *)"Kuchnia1");
 		  }
 		  counter++;
 

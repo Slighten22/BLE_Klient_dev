@@ -7,21 +7,21 @@ Idx Name          Size      VMA       LMA       File off  Algn
                   CONTENTS, ALLOC, LOAD, READONLY, DATA
   1 .text         000084c8  08000190  08000190  00010190  2**4
                   CONTENTS, ALLOC, LOAD, READONLY, CODE
-  2 .rodata       000003b4  08008658  08008658  00018658  2**2
+  2 .rodata       000003d4  08008658  08008658  00018658  2**2
                   CONTENTS, ALLOC, LOAD, READONLY, DATA
-  3 .ARM.extab    00000078  08008a0c  08008a0c  00018a0c  2**2
+  3 .ARM.extab    00000078  08008a2c  08008a2c  00018a2c  2**2
                   CONTENTS, ALLOC, LOAD, READONLY, DATA
-  4 .ARM          00000110  08008a84  08008a84  00018a84  2**2
+  4 .ARM          00000110  08008aa4  08008aa4  00018aa4  2**2
                   CONTENTS, ALLOC, LOAD, READONLY, DATA
-  5 .init_array   00000004  08008b94  08008b94  00018b94  2**2
+  5 .init_array   00000004  08008bb4  08008bb4  00018bb4  2**2
                   CONTENTS, ALLOC, LOAD, DATA
-  6 .fini_array   00000004  08008b98  08008b98  00018b98  2**2
+  6 .fini_array   00000004  08008bb8  08008bb8  00018bb8  2**2
                   CONTENTS, ALLOC, LOAD, DATA
-  7 .data         00000084  20000000  08008b9c  00020000  2**2
+  7 .data         00000084  20000000  08008bbc  00020000  2**2
                   CONTENTS, ALLOC, LOAD, DATA
-  8 .bss          00001624  20000084  08008c20  00020084  2**2
+  8 .bss          00001624  20000084  08008c40  00020084  2**2
                   ALLOC
-  9 ._user_heap_stack 00000600  200016a8  08008c20  000216a8  2**0
+  9 ._user_heap_stack 00000600  200016a8  08008c40  000216a8  2**0
                   ALLOC
  10 .ARM.attributes 00000030  00000000  00000000  00020084  2**0
                   CONTENTS, READONLY
@@ -1190,8 +1190,8 @@ Disassembly of section .text:
  8000e7c:	2309      	moveq	r3, #9
  8000e7e:	e7dc      	b.n	8000e3a <get_eit_entry+0x4e>
  8000e80:	00000000 	.word	0x00000000
- 8000e84:	08008b94 	.word	0x08008b94
- 8000e88:	08008a84 	.word	0x08008a84
+ 8000e84:	08008bb4 	.word	0x08008bb4
+ 8000e88:	08008aa4 	.word	0x08008aa4
 
 08000e8c <restore_non_core_regs>:
  8000e8c:	6803      	ldr	r3, [r0, #0]
@@ -3790,7 +3790,7 @@ static HAL_StatusTypeDef RCC_SetFlashLatencyFromMSIRange(uint32_t msirange)
  8002220:	4770      	bx	lr
  8002222:	bf00      	nop
  8002224:	40021000 	.word	0x40021000
- 8002228:	08008944 	.word	0x08008944
+ 8002228:	08008964 	.word	0x08008964
  800222c:	007a1200 	.word	0x007a1200
  8002230:	00f42400 	.word	0x00f42400
 
@@ -4145,7 +4145,7 @@ static HAL_StatusTypeDef RCC_SetFlashLatencyFromMSIRange(uint32_t msirange)
  80024e0:	e748      	b.n	8002374 <HAL_RCC_OscConfig+0x140>
  80024e2:	bf00      	nop
  80024e4:	40021000 	.word	0x40021000
- 80024e8:	0800892c 	.word	0x0800892c
+ 80024e8:	0800894c 	.word	0x0800894c
  80024ec:	2000001c 	.word	0x2000001c
  80024f0:	20000004 	.word	0x20000004
     if(HAL_IS_BIT_CLR(RCC->APB1ENR1, RCC_APB1ENR1_PWREN))
@@ -4584,7 +4584,7 @@ static HAL_StatusTypeDef RCC_SetFlashLatencyFromMSIRange(uint32_t msirange)
  8002856:	bf00      	nop
  8002858:	40022000 	.word	0x40022000
  800285c:	40021000 	.word	0x40021000
- 8002860:	0800892c 	.word	0x0800892c
+ 8002860:	0800894c 	.word	0x0800894c
  8002864:	2000001c 	.word	0x2000001c
  8002868:	20000004 	.word	0x20000004
 
@@ -4610,7 +4610,7 @@ static HAL_StatusTypeDef RCC_SetFlashLatencyFromMSIRange(uint32_t msirange)
  800288c:	40d8      	lsrs	r0, r3
  800288e:	4770      	bx	lr
  8002890:	40021000 	.word	0x40021000
- 8002894:	0800893c 	.word	0x0800893c
+ 8002894:	0800895c 	.word	0x0800895c
  8002898:	2000001c 	.word	0x2000001c
 
 0800289c <HAL_RCC_GetPCLK2Freq>:
@@ -4627,7 +4627,7 @@ static HAL_StatusTypeDef RCC_SetFlashLatencyFromMSIRange(uint32_t msirange)
  80028b0:	40d8      	lsrs	r0, r3
  80028b2:	4770      	bx	lr
  80028b4:	40021000 	.word	0x40021000
- 80028b8:	0800893c 	.word	0x0800893c
+ 80028b8:	0800895c 	.word	0x0800895c
  80028bc:	2000001c 	.word	0x2000001c
 
 080028c0 <HAL_RCC_GetClockConfig>:
@@ -7150,9 +7150,9 @@ __weak void HAL_TIMEx_Break2Callback(TIM_HandleTypeDef *htim)
  8003868:	efff69f3 	.word	0xefff69f3
  800386c:	40008000 	.word	0x40008000
  8003870:	40013800 	.word	0x40013800
- 8003874:	080087a2 	.word	0x080087a2
+ 8003874:	080087c2 	.word	0x080087c2
  8003878:	40004400 	.word	0x40004400
- 800387c:	080087a6 	.word	0x080087a6
+ 800387c:	080087c6 	.word	0x080087c6
  8003880:	40004800 	.word	0x40004800
  8003884:	40004c00 	.word	0x40004c00
  8003888:	40005000 	.word	0x40005000
@@ -12487,7 +12487,7 @@ const TickType_t xConstTickCount = xTickCount;
  80056ae:	b008      	add	sp, #32
  80056b0:	bd10      	pop	{r4, pc}
  80056b2:	bf00      	nop
- 80056b4:	080087b3 	.word	0x080087b3
+ 80056b4:	080087d3 	.word	0x080087d3
  80056b8:	0800549d 	.word	0x0800549d
  80056bc:	20001194 	.word	0x20001194
  80056c0:	200011b0 	.word	0x200011b0
@@ -13864,7 +13864,7 @@ void delayMicrosecondsBLE(uint32_t us){
     printf("BLE Stack Initialized.\n");
  80060c6:	4821      	ldr	r0, [pc, #132]	; (800614c <MX_BlueNRG_MS_Init+0x170>)
  80060c8:	f001 fd78 	bl	8007bbc <puts>
-  if (BLE_Role == SERVER) {
+  if (BLE_Role == SERVER) { /* TODO: rozroznic id serwisu i charakterystyk roznych serverow */
  80060cc:	7823      	ldrb	r3, [r4, #0]
  80060ce:	2b01      	cmp	r3, #1
  80060d0:	d126      	bne.n	8006120 <MX_BlueNRG_MS_Init+0x144>
@@ -13922,16 +13922,16 @@ void delayMicrosecondsBLE(uint32_t us){
  800612c:	200011e4 	.word	0x200011e4
  8006130:	08006efd 	.word	0x08006efd
  8006134:	000186a0 	.word	0x000186a0
- 8006138:	080087b8 	.word	0x080087b8
- 800613c:	080087cc 	.word	0x080087cc
- 8006140:	080087ec 	.word	0x080087ec
- 8006144:	080087fe 	.word	0x080087fe
+ 8006138:	080087d8 	.word	0x080087d8
+ 800613c:	080087ec 	.word	0x080087ec
+ 8006140:	0800880c 	.word	0x0800880c
+ 8006144:	0800881e 	.word	0x0800881e
  8006148:	0001e240 	.word	0x0001e240
- 800614c:	0800880f 	.word	0x0800880f
- 8006150:	08008826 	.word	0x08008826
- 8006154:	08008844 	.word	0x08008844
- 8006158:	08008860 	.word	0x08008860
- 800615c:	0800887c 	.word	0x0800887c
+ 800614c:	0800882f 	.word	0x0800882f
+ 8006150:	08008846 	.word	0x08008846
+ 8006154:	08008864 	.word	0x08008864
+ 8006158:	08008880 	.word	0x08008880
+ 800615c:	0800889c 	.word	0x0800889c
 
 08006160 <vApplicationGetIdleTaskMemory>:
 static StaticTask_t xIdleTaskTCBBuffer;
@@ -15031,9 +15031,9 @@ void AskForDataTaskThread(void const * argument)
  80067e2:	781b      	ldrb	r3, [r3, #0]
  80067e4:	2b04      	cmp	r3, #4
  80067e6:	d104      	bne.n	80067f2 <_Z20AskForDataTaskThreadPKv+0x46>
-			  sendNewConfig(DHT22, 3, (uint8_t *)"Kuchnia1");
+			  sendNewConfig(DHT22, 4, (uint8_t *)"Kuchnia1");
  80067e8:	4a0f      	ldr	r2, [pc, #60]	; (8006828 <_Z20AskForDataTaskThreadPKv+0x7c>)
- 80067ea:	2103      	movs	r1, #3
+ 80067ea:	2104      	movs	r1, #4
  80067ec:	2000      	movs	r0, #0
  80067ee:	f000 f8f7 	bl	80069e0 <_Z13sendNewConfightPh>
 		  }
@@ -15649,7 +15649,6 @@ void Make_Connection(void)
  8006bd4:	b570      	push	{r4, r5, r6, lr}
   tBleStatus ret;
   
-  
   if(BLE_Role == CLIENT) {
  8006bd6:	4b26      	ldr	r3, [pc, #152]	; (8006c70 <Make_Connection+0x9c>)
  8006bd8:	781c      	ldrb	r4, [r3, #0]
@@ -15662,13 +15661,18 @@ void Make_Connection(void)
     printf("Client Create Connection\n");
  8006be0:	4824      	ldr	r0, [pc, #144]	; (8006c74 <Make_Connection+0xa0>)
  8006be2:	f000 ffeb 	bl	8007bbc <puts>
-    tBDAddr bdaddr = {0xaa, 0x00, 0x00, 0xE1, 0x80, 0x02}; /* Adres servera */
+    
+
+    //TODO nowy adres servera do polaczenia
+//    tBDAddr bdaddr = {0xaa, 0x00, 0x00, 0xE1, 0x80, 0x02}; /* Adres servera */
+    tBDAddr bdaddr = {0xcc, 0x00, 0x00, 0xE1, 0x80, 0x02}; /* Adres servera */
  8006be6:	4b24      	ldr	r3, [pc, #144]	; (8006c78 <Make_Connection+0xa4>)
  8006be8:	6818      	ldr	r0, [r3, #0]
  8006bea:	9008      	str	r0, [sp, #32]
  8006bec:	889b      	ldrh	r3, [r3, #4]
  8006bee:	80ab      	strh	r3, [r5, #4]
-    
+
+
     BSP_LED_On(LED2); //To indicate the start of the connection and discovery phase
  8006bf0:	4620      	mov	r0, r4
  8006bf2:	f000 facf 	bl	8007194 <BSP_LED_On>
@@ -15750,9 +15754,9 @@ void Make_Connection(void)
 }
  8006c6e:	e7d8      	b.n	8006c22 <Make_Connection+0x4e>
  8006c70:	200011e4 	.word	0x200011e4
- 8006c74:	080088c8 	.word	0x080088c8
+ 8006c74:	080088e8 	.word	0x080088e8
  8006c78:	0800878f 	.word	0x0800878f
- 8006c7c:	080088e1 	.word	0x080088e1
+ 8006c7c:	08008901 	.word	0x08008901
  8006c80:	08008795 	.word	0x08008795
 
 08006c84 <startReadTXCharHandle>:
@@ -15773,7 +15777,8 @@ void startReadTXCharHandle(void)
   {    
     PRINTF("Start reading TX Char Handle\n");
     
-    const uint8_t charUuid128_TX[16] = {0x66,0x9a,0x0c,0x20,0x00,0x08,0x96,0x9e,0xe2,0x11,0x9e,0xb1,0xe1,0xf2,0x73,0xd9};
+    //TODO inne charakterystyki TX, RX (roznica na 3. bajcie)
+    const uint8_t charUuid128_TX[16] = {0x66,0x9a,0x0c,0x20,0x00,0x08,0x96,0x9e,0xe2,0x11,0x9e,0xb1,/*0xe1*/0xe4,0xf2,0x73,0xd9};
  8006c8e:	4b0e      	ldr	r3, [pc, #56]	; (8006cc8 <startReadTXCharHandle+0x44>)
  8006c90:	aa02      	add	r2, sp, #8
  8006c92:	f103 0710 	add.w	r7, r3, #16
@@ -15803,7 +15808,7 @@ void startReadTXCharHandle(void)
  8006cc0:	b007      	add	sp, #28
  8006cc2:	bdf0      	pop	{r4, r5, r6, r7, pc}
  8006cc4:	20001546 	.word	0x20001546
- 8006cc8:	0800876f 	.word	0x0800876f
+ 8006cc8:	080087a2 	.word	0x080087a2
  8006ccc:	20001540 	.word	0x20001540
 
 08006cd0 <startReadRXCharHandle>:
@@ -15824,7 +15829,8 @@ void startReadRXCharHandle(void)
   {
     PRINTF("Start reading RX Char Handle\n");
     
-    const uint8_t charUuid128_RX[16] = {0x66,0x9a,0x0c,0x20,0x00,0x08,0x96,0x9e,0xe2,0x11,0x9e,0xb1,0xe2,0xf2,0x73,0xd9};
+    //TODO inne charakterystyki TX, RX (roznica na 3. bajcie)
+    const uint8_t charUuid128_RX[16] = {0x66,0x9a,0x0c,0x20,0x00,0x08,0x96,0x9e,0xe2,0x11,0x9e,0xb1,/*0xe2*/0xe5,0xf2,0x73,0xd9};
  8006cda:	4b0e      	ldr	r3, [pc, #56]	; (8006d14 <startReadRXCharHandle+0x44>)
  8006cdc:	aa02      	add	r2, sp, #8
  8006cde:	f103 0710 	add.w	r7, r3, #16
@@ -15854,7 +15860,7 @@ void startReadRXCharHandle(void)
  8006d0c:	b007      	add	sp, #28
  8006d0e:	bdf0      	pop	{r4, r5, r6, r7, pc}
  8006d10:	20001545 	.word	0x20001545
- 8006d14:	0800877f 	.word	0x0800877f
+ 8006d14:	080087b2 	.word	0x080087b2
  8006d18:	20001540 	.word	0x20001540
 
 08006d1c <receiveData>:
@@ -16082,10 +16088,10 @@ void GAP_ConnectionComplete_CB(uint8_t addr[6], uint16_t handle)
   printf("%02X\n", addr[0]);
  8006e54:	f000 be2a 	b.w	8007aac <iprintf>
  8006e58:	2000153c 	.word	0x2000153c
- 8006e5c:	080088af 	.word	0x080088af
+ 8006e5c:	080088cf 	.word	0x080088cf
  8006e60:	20001540 	.word	0x20001540
- 8006e64:	0800889a 	.word	0x0800889a
- 8006e68:	080088b5 	.word	0x080088b5
+ 8006e64:	080088ba 	.word	0x080088ba
+ 8006e68:	080088d5 	.word	0x080088d5
 
 08006e6c <GAP_DisconnectionComplete_CB>:
  * @param  None 
@@ -16128,7 +16134,7 @@ void GAP_DisconnectionComplete_CB(void)
  8006e94:	bd10      	pop	{r4, pc}
  8006e96:	bf00      	nop
  8006e98:	2000153c 	.word	0x2000153c
- 8006e9c:	080088bb 	.word	0x080088bb
+ 8006e9c:	080088db 	.word	0x080088db
  8006ea0:	2000000d 	.word	0x2000000d
  8006ea4:	20001544 	.word	0x20001544
  8006ea8:	20001546 	.word	0x20001546
@@ -16274,7 +16280,7 @@ void GATT_Notification_CB(uint16_t attr_handle, uint8_t attr_len, uint8_t *attr_
  8006f60:	f103 020a 	addne.w	r2, r3, #10
  8006f64:	f7ff bf44 	b.w	8006df0 <Attribute_Modified_CB>
 
-      /* GATT notification = odebrane dane */
+      /* GATT notification = odebrane dane od servera */
       case EVT_BLUE_GATT_NOTIFICATION:
         {
           evt_gatt_attr_notification *evt = (evt_gatt_attr_notification*)blue_evt->data;
@@ -16288,7 +16294,7 @@ void GATT_Notification_CB(uint16_t attr_handle, uint8_t attr_len, uint8_t *attr_
         }
         break;
 
-      /* Odczytwanie charakterystyk slave'a czyli TX i RX handles */
+      /* Odczytwanie charakterystyk slave'a czyli poznawanie TX i RX handles */
       case EVT_BLUE_GATT_DISC_READ_CHAR_BY_UUID_RESP:
         if(BLE_Role == CLIENT) {
  8006f78:	4a18      	ldr	r2, [pc, #96]	; (8006fdc <user_notify+0xe0>)
@@ -16378,11 +16384,11 @@ void GATT_Notification_CB(uint16_t attr_handle, uint8_t attr_len, uint8_t *attr_
  8006fe0:	20001546 	.word	0x20001546
  8006fe4:	20001543 	.word	0x20001543
  8006fe8:	20001574 	.word	0x20001574
- 8006fec:	08008902 	.word	0x08008902
+ 8006fec:	08008922 	.word	0x08008922
  8006ff0:	20001545 	.word	0x20001545
  8006ff4:	20001542 	.word	0x20001542
  8006ff8:	20001576 	.word	0x20001576
- 8006ffc:	08008917 	.word	0x08008917
+ 8006ffc:	08008937 	.word	0x08008937
 
 08007000 <HAL_MspInit>:
 {
@@ -17643,7 +17649,7 @@ LoopForever:
   ldr   sp, =_estack    /* Set stack pointer */
  80075a0:	20018000 	.word	0x20018000
 	ldr	r3, =_sidata
- 80075a4:	08008b9c 	.word	0x08008b9c
+ 80075a4:	08008bbc 	.word	0x08008bbc
 	ldr	r0, =_sdata
  80075a8:	20000000 	.word	0x20000000
 	ldr	r3, =_edata
@@ -17826,9 +17832,9 @@ Infinite_Loop:
  800771a:	2000      	movs	r0, #0
  800771c:	bd38      	pop	{r3, r4, r5, pc}
  800771e:	bf00      	nop
- 8007720:	08008994 	.word	0x08008994
- 8007724:	080089b4 	.word	0x080089b4
- 8007728:	08008974 	.word	0x08008974
+ 8007720:	080089b4 	.word	0x080089b4
+ 8007724:	080089d4 	.word	0x080089d4
+ 8007728:	08008994 	.word	0x08008994
 
 0800772c <fflush>:
  800772c:	4601      	mov	r1, r0
@@ -17841,7 +17847,7 @@ Infinite_Loop:
  800773c:	6818      	ldr	r0, [r3, #0]
  800773e:	f7ff bfcb 	b.w	80076d8 <_fflush_r>
  8007742:	bf00      	nop
- 8007744:	080089d4 	.word	0x080089d4
+ 8007744:	080089f4 	.word	0x080089f4
  8007748:	080076d9 	.word	0x080076d9
  800774c:	20000020 	.word	0x20000020
 
@@ -17942,7 +17948,7 @@ Infinite_Loop:
  8007822:	2301      	movs	r3, #1
  8007824:	61a3      	str	r3, [r4, #24]
  8007826:	bd10      	pop	{r4, pc}
- 8007828:	080089d4 	.word	0x080089d4
+ 8007828:	080089f4 	.word	0x080089f4
  800782c:	08007751 	.word	0x08007751
 
 08007830 <__sfp>:
@@ -17998,7 +18004,7 @@ Infinite_Loop:
  800789e:	64a5      	str	r5, [r4, #72]	; 0x48
  80078a0:	64e5      	str	r5, [r4, #76]	; 0x4c
  80078a2:	e7e6      	b.n	8007872 <__sfp+0x42>
- 80078a4:	080089d4 	.word	0x080089d4
+ 80078a4:	080089f4 	.word	0x080089f4
 
 080078a8 <_fwalk_reent>:
  80078a8:	e92d 43f8 	stmdb	sp!, {r3, r4, r5, r6, r7, r8, r9, lr}
@@ -18054,10 +18060,10 @@ Infinite_Loop:
  8007916:	4798      	blx	r3
  8007918:	3501      	adds	r5, #1
  800791a:	e7f2      	b.n	8007902 <__libc_init_array+0x1e>
- 800791c:	08008b94 	.word	0x08008b94
- 8007920:	08008b94 	.word	0x08008b94
- 8007924:	08008b94 	.word	0x08008b94
- 8007928:	08008b98 	.word	0x08008b98
+ 800791c:	08008bb4 	.word	0x08008bb4
+ 8007920:	08008bb4 	.word	0x08008bb4
+ 8007924:	08008bb4 	.word	0x08008bb4
+ 8007928:	08008bb8 	.word	0x08008bb8
 
 0800792c <memcpy>:
  800792c:	b510      	push	{r4, lr}
@@ -18359,9 +18365,9 @@ Infinite_Loop:
  8007baa:	7018      	strb	r0, [r3, #0]
  8007bac:	bd70      	pop	{r4, r5, r6, pc}
  8007bae:	bf00      	nop
- 8007bb0:	08008994 	.word	0x08008994
- 8007bb4:	080089b4 	.word	0x080089b4
- 8007bb8:	08008974 	.word	0x08008974
+ 8007bb0:	080089b4 	.word	0x080089b4
+ 8007bb4:	080089d4 	.word	0x080089d4
+ 8007bb8:	08008994 	.word	0x08008994
 
 08007bbc <puts>:
  8007bbc:	4b02      	ldr	r3, [pc, #8]	; (8007bc8 <puts+0xc>)
@@ -18519,9 +18525,9 @@ Infinite_Loop:
  8007d06:	4638      	mov	r0, r7
  8007d08:	bdf8      	pop	{r3, r4, r5, r6, r7, pc}
  8007d0a:	bf00      	nop
- 8007d0c:	08008994 	.word	0x08008994
- 8007d10:	080089b4 	.word	0x080089b4
- 8007d14:	08008974 	.word	0x08008974
+ 8007d0c:	080089b4 	.word	0x080089b4
+ 8007d10:	080089d4 	.word	0x080089d4
+ 8007d14:	08008994 	.word	0x08008994
 
 08007d18 <_write_r>:
  8007d18:	b538      	push	{r3, r4, r5, lr}
@@ -18631,9 +18637,9 @@ Infinite_Loop:
  8007e04:	e7f7      	b.n	8007df6 <__swsetup_r+0xba>
  8007e06:	bf00      	nop
  8007e08:	20000020 	.word	0x20000020
- 8007e0c:	08008994 	.word	0x08008994
- 8007e10:	080089b4 	.word	0x080089b4
- 8007e14:	08008974 	.word	0x08008974
+ 8007e0c:	080089b4 	.word	0x080089b4
+ 8007e10:	080089d4 	.word	0x080089d4
+ 8007e14:	08008994 	.word	0x08008994
 
 08007e18 <_close_r>:
  8007e18:	b538      	push	{r3, r4, r5, lr}
@@ -19022,12 +19028,12 @@ Infinite_Loop:
  8008180:	f000 f888 	bl	8008294 <_printf_i>
  8008184:	e7ec      	b.n	8008160 <_vfiprintf_r+0x1e4>
  8008186:	bf00      	nop
- 8008188:	08008994 	.word	0x08008994
- 800818c:	080089d8 	.word	0x080089d8
- 8008190:	080089b4 	.word	0x080089b4
- 8008194:	08008974 	.word	0x08008974
- 8008198:	080089de 	.word	0x080089de
- 800819c:	080089e2 	.word	0x080089e2
+ 8008188:	080089b4 	.word	0x080089b4
+ 800818c:	080089f8 	.word	0x080089f8
+ 8008190:	080089d4 	.word	0x080089d4
+ 8008194:	08008994 	.word	0x08008994
+ 8008198:	080089fe 	.word	0x080089fe
+ 800819c:	08008a02 	.word	0x08008a02
  80081a0:	00000000 	.word	0x00000000
  80081a4:	08007f59 	.word	0x08007f59
 
@@ -19366,8 +19372,8 @@ Infinite_Loop:
  80084c2:	f884 3042 	strb.w	r3, [r4, #66]	; 0x42
  80084c6:	f104 0542 	add.w	r5, r4, #66	; 0x42
  80084ca:	e765      	b.n	8008398 <_printf_i+0x104>
- 80084cc:	080089fa 	.word	0x080089fa
- 80084d0:	080089e9 	.word	0x080089e9
+ 80084cc:	08008a1a 	.word	0x08008a1a
+ 80084d0:	08008a09 	.word	0x08008a09
 
 080084d4 <_putc_r>:
  80084d4:	b570      	push	{r4, r5, r6, lr}
@@ -19415,9 +19421,9 @@ Infinite_Loop:
  800852e:	b2e8      	uxtb	r0, r5
  8008530:	bd70      	pop	{r4, r5, r6, pc}
  8008532:	bf00      	nop
- 8008534:	08008994 	.word	0x08008994
- 8008538:	080089b4 	.word	0x080089b4
- 800853c:	08008974 	.word	0x08008974
+ 8008534:	080089b4 	.word	0x080089b4
+ 8008538:	080089d4 	.word	0x080089d4
+ 800853c:	08008994 	.word	0x08008994
 
 08008540 <_read_r>:
  8008540:	b538      	push	{r3, r4, r5, lr}
