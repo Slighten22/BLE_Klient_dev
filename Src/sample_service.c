@@ -47,6 +47,8 @@ extern uint8_t dataBLE[];
 extern bool newData;
 extern uint8_t whichLoopIteration;
 
+extern uint8_t whichServerConnecting;
+
 /** @addtogroup Applications
  *  @{
  */
@@ -73,6 +75,7 @@ volatile uint8_t end_read_tx_char_handle = FALSE;
 volatile uint8_t end_read_rx_char_handle = FALSE;
 
 volatile uint8_t client_ready = FALSE;
+volatile uint8_t discovery_started = FALSE;
 
 uint16_t tx_handle; /* Klient zna handle do charakterystyk servera */
 uint16_t rx_handle;
@@ -151,17 +154,12 @@ fail:
  */
 void Make_Connection(void)
 {  
-  tBleStatus ret;
-  
-  if(BLE_Role == CLIENT) {
+    tBleStatus ret;
     
     printf("Client Create Connection\n");
-    
 
-    //TODO nowy adres servera do polaczenia
-    tBDAddr bdaddr = {0xaa, 0x00, 0x00, 0xE1, 0x80, 0x02}; /* Adres servera 1 */
-//    tBDAddr bdaddr = {0xcc, 0x00, 0x00, 0xE1, 0x80, 0x02}; /* Adres servera 2 */
-
+    tBDAddr bdaddr1 = {0xaa, 0x00, 0x00, 0xE1, 0x80, 0x02};
+    tBDAddr bdaddr2 = {0xcc, 0x00, 0x00, 0xE1, 0x80, 0x02};
 
     BSP_LED_On(LED2); //To indicate the start of the connection and discovery phase
     
@@ -170,51 +168,22 @@ void Make_Connection(void)
     Conn_Interval_Max, Conn_Latency, Supervision_Timeout, Conn_Len_Min, Conn_Len_Max    
     */
     ret = aci_gap_create_connection(
-    		SCAN_P, /* 10240 msec = Time interval from when the Controller started its last scan until it begins the subsequent scan = how long to wait between scans (for a number N, Time = N x 0.625 msec) */
-    		SCAN_L, /* 10240 msec = Scan Window: amount of time for the duration of the LE scan = how long to scan (for a number N, Time = N x 0.625 msec) */
+    		/*SCAN_P*/0x0010, /* 10240 msec = Time interval from when the Controller started its last scan until it begins the subsequent scan = how long to wait between scans (for a number N, Time = N x 0.625 msec) */
+    		/*SCAN_L*/0x0010, /* 10240 msec = Scan Window: amount of time for the duration of the LE scan = how long to scan (for a number N, Time = N x 0.625 msec) */
 			PUBLIC_ADDR, /* Peer_Address_Type */
-			bdaddr, /* Peer_Address */
+//			bdaddr, /* Peer_Address */
+			((whichServerConnecting == 1) ? bdaddr1 : bdaddr2),
 			PUBLIC_ADDR, /* Own_Address_Type */
-			CONN_P1, /* 50 msec = Minimum Connection Period (interval) = time between two data transfer events (for a number N, Time = N x 1.25 msec) */
-			CONN_P2, /* 50 msec = Maximum Connection Period (interval) = Connection interval is the time between one radio event on a given connection and the next radio event on the same connection (for a number N, Time = N x 1.25 msec) */
-			0, /* Connection latency = If non-zero, the peripheral is allowed to skip up to slave latency radio events and not listen. That saves even more power, at the expense of even slower data. number of consecutive connection events where the slave doesn't need to listen on the master(?) */
-            SUPERV_TIMEOUT, /* 600 msec = Supervision Timeout (reset upon reception of a valid packet) max time between 2 packets before connection is considered lost (Time = N x 10 msec) */
-			CONN_L1, /* 1250 msec = Minimum Connection Length (for a number N, Time = N x 0.625 msec) */
-			CONN_L2  /* 1250 msec = Maximal Connection Length (for a number N, Time = N x 0.625 msec) */
+			/*CONN_P1*/0x06C, /* 50 msec = Minimum Connection Period (interval) = time between two data transfer events (for a number N, Time = N x 1.25 msec) */
+			/*CONN_P2*/0x06C, /* 50 msec = Maximum Connection Period (interval) = Connection interval is the time between one radio event on a given connection and the next radio event on the same connection (for a number N, Time = N x 1.25 msec) */
+			0x0000, /* Connection latency = If non-zero, the peripheral is allowed to skip up to slave latency radio events and not listen. That saves even more power, at the expense of even slower data. number of consecutive connection events where the slave doesn't need to listen on the master(?) */
+            /*SUPERV_TIMEOUT*/0x0C80, /* 600 msec = Supervision Timeout (reset upon reception of a valid packet) max time between 2 packets before connection is considered lost (Time = N x 10 msec) */
+			/*CONN_L1*/0x000C, /* 1250 msec = Minimum Connection Length (for a number N, Time = N x 0.625 msec) */
+			/*CONN_L2*/0x000C  /* 1250 msec = Maximal Connection Length (for a number N, Time = N x 0.625 msec) */
 	);
-    
-    if (ret != 0){
+    if (ret != BLE_STATUS_SUCCESS){
       printf("Error while starting connection.\n");
     }
-    
-  } else  {
-    
-    const char local_name[] = {AD_TYPE_COMPLETE_LOCAL_NAME,'B','l','u','e','N','R','G','_','C','h','a','t'};
-    
-    /* disable scan response (nie bedize dodatkowych informacji o serverze dla mastera) */
-    hci_le_set_scan_resp_data(0,NULL);
-    
-    PRINTF("General Discoverable Mode ");
-    /*
-    Advertising_Event_Type, Adv_Interval_Min, Adv_Interval_Max, Address_Type, Adv_Filter_Policy,
-    Local_Name_Length, Local_Name, Service_Uuid_Length, Service_Uuid_List, Slave_Conn_Interval_Min,
-    Slave_Conn_Interval_Max
-    */
-    ret = aci_gap_set_discoverable(
-    		ADV_DATA_TYPE, /* undirected scannable and connectable = Advertising_Event_Type */
-			ADV_INTERV_MIN,/* 1280 msec = Minimum Advertising Interval https://www.argenox.com/library/bluetooth-low-energy/ble-advertising-primer/(for a number N, Time = N x 0.625 msec) */
-			ADV_INTERV_MAX,/* 2560 msec = Maximal Advertising Interval (slow advertising, non-critical latency) (for a number N, Time = N x 0.625 msec) */
-			PUBLIC_ADDR,   /* public address = Address_Type */
-            NO_WHITE_LIST_USE,/* Process scan and connection requests from all devices (i.e., the White List is not in use) */
-			13, /* Local_Name_Length (= 0x09BlueNRG_Chat) */
-			local_name, /* 0x09BlueNRG_Chat */
-			0, /* Service_Uuid_Length */
-			NULL, /* Service_Uuid_List */
-			0, /* Slave_Conn_Interval_Min = time between one radio event on a given connection and the next radio event on the same connection */
-			0  /* Slave_Conn_Interval_Max https://devzone.nordicsemi.com/f/nordic-q-a/25340/do-i-understand-ble-connection-interval-properly */
-	);
-    PRINTF("%d\n",ret);
-  }
 }
 
 /**
@@ -228,8 +197,12 @@ void startReadTXCharHandle(void)
   {    
     PRINTF("Start reading TX Char Handle\n");
     
-    //TODO inne charakterystyki TX, RX (roznica na 3. bajcie)
-    const uint8_t charUuid128_TX[16] = {0x66,0x9a,0x0c,0x20,0x00,0x08,0x96,0x9e,0xe2,0x11,0x9e,0xb1,0xe1/*0xe4*/,0xf2,0x73,0xd9};
+    //TODO inne charakterystyki TX, RX (roznica na 12. bajcie)
+	/*const*/ uint8_t charUuid128_TX[16] = {0x66,0x9a,0x0c,0x20,0x00,0x08,0x96,0x9e,0xe2,0x11,0x9e,0xb1,0xe1/*0xe4*/,0xf2,0x73,0xd9};
+    if(whichServerConnecting == 1){}
+    	/* OK */
+    else if(whichServerConnecting == 2)
+    	charUuid128_TX[12] = 0xe4;
     aci_gatt_disc_charac_by_uuid(connection_handle, 0x0001, 0xFFFF, UUID_TYPE_128, charUuid128_TX);
     start_read_tx_char_handle = TRUE;
   }
@@ -247,7 +220,11 @@ void startReadRXCharHandle(void)
     PRINTF("Start reading RX Char Handle\n");
     
     //TODO inne charakterystyki TX, RX (roznica na 3. bajcie)
-    const uint8_t charUuid128_RX[16] = {0x66,0x9a,0x0c,0x20,0x00,0x08,0x96,0x9e,0xe2,0x11,0x9e,0xb1,0xe2/*0xe5*/,0xf2,0x73,0xd9};
+    /*const*/ uint8_t charUuid128_RX[16] = {0x66,0x9a,0x0c,0x20,0x00,0x08,0x96,0x9e,0xe2,0x11,0x9e,0xb1,0xe2/*0xe5*/,0xf2,0x73,0xd9};
+    if(whichServerConnecting == 1) {}
+    	/* OK */
+    else if(whichServerConnecting == 2)
+    	charUuid128_RX[12] = 0xe5;
     aci_gatt_disc_charac_by_uuid(connection_handle, 0x0001, 0xFFFF, UUID_TYPE_128, charUuid128_RX);
     start_read_rx_char_handle = TRUE;
   }

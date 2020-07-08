@@ -35,8 +35,8 @@ extern "C" {
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "bluenrg_types.h"
-uint8_t dataBLE[VARIABLE_SIZE];
 #define MSG_LEN 20
+uint8_t dataBLE[MSG_LEN];
 //Delay time between following reads in ms
 #define delayTime 3000
 //Sensor name max length (in characters)
