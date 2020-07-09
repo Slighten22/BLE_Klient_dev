@@ -271,7 +271,6 @@ static void User_Process(void)
 //		delayMicrosecondsBLE(1000000);
 //	}
 
-
   if (set_connectable)
 //  if(set_connectable /*&& discovery_started*/)
   {
@@ -282,17 +281,15 @@ static void User_Process(void)
   }
 
   //
-  if(connected && whichServerConnecting == 1){
-	whichServerConnecting++;
-	Make_Connection();
-  }
+//  if(connected && whichServerConnecting == 1){
+//	whichServerConnecting++;
+//	Make_Connection();
+//  }
 
-  if (BLE_Role == CLIENT) 
-  {
     /* Start TX handle Characteristic dynamic discovery if not yet done */
 	/* z user_notify ustawiamy connected po nawiazaniu polaczenia = Skad jest wywolywane GAP_ConnectionComplete_CB */
     if (connected && !end_read_tx_char_handle){
-      startReadTXCharHandle();
+      startReadTXCharHandle(); //trzeba wiedziec, od ktorego polaczenia!
     }
     /* Start RX handle Characteristic dynamic discovery if not yet done */
     else if (connected && !end_read_rx_char_handle){      
@@ -344,8 +341,6 @@ static void User_Process(void)
 			whichServerConnecting++;
     	}
     }
-
-  } /* BLE_Role == CLIENT */
 }
 
 /**

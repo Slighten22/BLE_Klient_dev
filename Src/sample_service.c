@@ -168,16 +168,17 @@ void Make_Connection(void)
     Conn_Interval_Max, Conn_Latency, Supervision_Timeout, Conn_Len_Min, Conn_Len_Max    
     */
     ret = aci_gap_create_connection(
-    		/*SCAN_P*/0x0010, /* 10240 msec = Time interval from when the Controller started its last scan until it begins the subsequent scan = how long to wait between scans (for a number N, Time = N x 0.625 msec) */
-    		/*SCAN_L*/0x0010, /* 10240 msec = Scan Window: amount of time for the duration of the LE scan = how long to scan (for a number N, Time = N x 0.625 msec) */
+    		SCAN_P/*0x0010*/, /* 10240 msec = Time interval from when the Controller started its last scan until it begins the subsequent scan = how long to wait between scans (for a number N, Time = N x 0.625 msec) */
+    		SCAN_L/*0x0010*/, /* 10240 msec = Scan Window: amount of time for the duration of the LE scan = how long to scan (for a number N, Time = N x 0.625 msec) */
 			PUBLIC_ADDR, /* Peer_Address_Type */
 //			bdaddr, /* Peer_Address */
 			((whichServerConnecting == 1) ? bdaddr1 : bdaddr2),
 			PUBLIC_ADDR, /* Own_Address_Type */
-			/*CONN_P1*/0x06C, /* 50 msec = Minimum Connection Period (interval) = time between two data transfer events (for a number N, Time = N x 1.25 msec) */
-			/*CONN_P2*/0x06C, /* 50 msec = Maximum Connection Period (interval) = Connection interval is the time between one radio event on a given connection and the next radio event on the same connection (for a number N, Time = N x 1.25 msec) */
+			CONN_P1/*0x06C*/, /* 50 msec = Minimum Connection Period (interval) = time between two data transfer events (for a number N, Time = N x 1.25 msec) */
+			CONN_P2/*0x06C*/, /* 50 msec = Maximum Connection Period (interval) = Connection interval is the time between one radio event on a given connection and the next radio event on the same connection (for a number N, Time = N x 1.25 msec) */
 			0x0000, /* Connection latency = If non-zero, the peripheral is allowed to skip up to slave latency radio events and not listen. That saves even more power, at the expense of even slower data. number of consecutive connection events where the slave doesn't need to listen on the master(?) */
-            /*SUPERV_TIMEOUT*/0x0C80, /* 600 msec = Supervision Timeout (reset upon reception of a valid packet) max time between 2 packets before connection is considered lost (Time = N x 10 msec) */
+            SUPERV_TIMEOUT/*0x0C80*/, /* 600 msec = Supervision Timeout (reset upon reception of a valid packet) max time between 2 packets before connection is considered lost (Time = N x 10 msec) */
+			//!dopiero po zmianie dwoch parametrow nizej udaje sie stworzyc drugie polaczenie!
 			/*CONN_L1*/0x000C, /* 1250 msec = Minimum Connection Length (for a number N, Time = N x 0.625 msec) */
 			/*CONN_L2*/0x000C  /* 1250 msec = Maximal Connection Length (for a number N, Time = N x 0.625 msec) */
 	);

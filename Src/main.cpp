@@ -76,7 +76,7 @@ void PresentationTaskThread(void const * argument);
 void CommunicationTaskThread(void const * argument);
 void presentDataFromSensor(uint8_t which);
 void delayMicroseconds(uint32_t us);
-void sendNewConfig(uint8_t sensorType, uint16_t interval, uint8_t *name);
+void prepareNewConfig(uint8_t sensorType, uint16_t interval, uint8_t *name);
 bool checkIfTempSensorReadoutCorrect(uint32_t dataBits, uint8_t checksumBits);
 /* USER CODE END PFP */
 
@@ -345,14 +345,15 @@ void AskForDataTaskThread(void const * argument)
 		xTaskNotifyWait(pdFALSE, 0xFF, &notifValue, portMAX_DELAY);
 		if((notifValue&0x01) != 0x00) //Sprawdza czy notifValue zawiera wartosc ktora wyslal task supervisora
 		{
-		  //TODO: Na razie wersja z jednym serverem, prymitywne wyslanie danych konfiguracji (docelowo bedzie do tego interfejs)
-		  if(counter == 0){
-			  sendNewConfig(DHT22, 4, (uint8_t *)"Pokoj1");
-		  }
-		  if(counter == 4){
-			  sendNewConfig(DHT22, 4, (uint8_t *)"Kuchnia1");
-		  }
-		  counter++;
+		  //bez wysylania danych o konfiguracji!
+		  //TODO: prymitywne wyslanie danych konfiguracji (docelowo bedzie do tego interfejs)
+//		  if(counter == 0){
+//			  prepareNewConfig(DHT22, 4, (uint8_t *)"Pokoj1");
+//		  }
+//		  if(counter == 4){
+//			  prepareNewConfig(DHT22, 4, (uint8_t *)"Kuchnia1");
+//		  }
+//		  counter++;
 
 	      MX_BlueNRG_MS_Process();
 
@@ -428,7 +429,7 @@ void delayMicroseconds(uint32_t us){
 	//UINT_MAX	Maximum value for a variable of type unsigned int	4,294,967,295 (0xffffffff)
 }
 
-void sendNewConfig(uint8_t sensorType, uint16_t interval, uint8_t *name){
+void prepareNewConfig(uint8_t sensorType, uint16_t interval, uint8_t *name){
 	/* Format wiadomosci: <typ_sensora:1B> <interwal:2B> <nazwa:max.14B> */
 	for(int i=0; i<MSG_LEN; i++){
 		sentConfigurationMsg[i] = '\0';
