@@ -44,7 +44,7 @@
 #include <string.h>
 #include <stdbool.h>
 extern bool newConfig;
-extern uint8_t sentConfigurationMsg[20];
+extern uint8_t sentConfigurationMsg[MSG_LEN];
 extern uint8_t whichLoopIteration;
 
 
@@ -193,7 +193,7 @@ void MX_BlueNRG_MS_Init(void)
   }
 
 
-  //? nie ma tego w przykladzie
+  //? nie ma tego w skryptach
   /* Wymagania autoryzacji - w tym ustalony (staly) kod pin, typ klucza autoryzacji, tryb laczenia */
 //  ret = aci_gap_set_auth_requirement(MITM_PROTECTION_REQUIRED,
 //                                     OOB_AUTH_DATA_ABSENT,
@@ -280,12 +280,6 @@ static void User_Process(void)
     user_button_init_state = BSP_PB_GetState(BUTTON_KEY);
   }
 
-  //
-//  if(connected && whichServerConnecting == 1){
-//	whichServerConnecting++;
-//	Make_Connection();
-//  }
-
     /* Start TX handle Characteristic dynamic discovery if not yet done */
 	/* z user_notify ustawiamy connected po nawiazaniu polaczenia = Skad jest wywolywane GAP_ConnectionComplete_CB */
     if (connected && !end_read_tx_char_handle){
@@ -307,7 +301,6 @@ static void User_Process(void)
     {
 		if(newConfig == true){
 		  newConfig = false; //TODO: problem - wiadomosc z konfiguracja moze byc gubiona, nie sprawdzam tego! rozwiazanie - ACK?
-
 		  //
 //		  sendData(sentConfigurationMsg, sizeof(sentConfigurationMsg));
 

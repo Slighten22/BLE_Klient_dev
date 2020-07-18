@@ -43,10 +43,13 @@
 #include "app_x-cube-ble1.h"
 #include <stdbool.h>
 
-extern uint8_t dataBLE[];
-extern bool newData;
-extern uint8_t whichLoopIteration;
+//
+extern uint8_t dataBLE[][MSG_LEN];
+//extern uint8_t dataBLE[];
+extern uint8_t newData;
+extern bool newDataPresent;
 
+extern uint8_t whichLoopIteration;
 extern uint8_t whichServerConnecting;
 
 /** @addtogroup Applications
@@ -74,7 +77,7 @@ volatile uint8_t start_read_rx_char_handle = FALSE;
 volatile uint8_t end_read_tx_char_handle = FALSE;
 volatile uint8_t end_read_rx_char_handle = FALSE;
 
-volatile uint8_t client_ready = FALSE;
+/*volatile*/ uint8_t client_ready = FALSE;
 volatile uint8_t discovery_started = FALSE;
 
 uint16_t tx_handle; /* Klient zna handle do charakterystyk servera */
@@ -349,15 +352,20 @@ void GAP_DisconnectionComplete_CB(void)
  */
 void GATT_Notification_CB(uint16_t attr_handle, uint8_t attr_len, uint8_t *attr_value)
 {
-	/* Odebrane dane od servera */
+	/* !Odebrane dane od servera! */
     if (attr_handle == tx_handle+1 && attr_len != 0 && *attr_value != '\0') {
-	  for(int i=0; i<attr_len && i<20; i++){
-		  dataBLE[i] = *(attr_value+i);
-	  }
-	  if(client_ready){
-		  newData = true;
-	  }
-  }
+      //TODO: wszystkie wiadomosci otrzymane podczas jednego slotu wlozyc do kolejki zeby potem dalo sie wszystko wypisac
+      for(int i=0; i<attr_len && i<MSG_LEN; i++){
+		  dataBLE[newData][i] = *(attr_value+i);
+//		  dataBLE[i] = *(attr_value+i);
+	  }//      strncpy((char *)dataBLE[newData], (char *)attr_value, (size_t)(attr_len <= MSG_LEN ? attr_len : MSG_LEN));
+
+      //?
+//      if(client_ready){
+      	  newDataPresent = true;
+		  newData++;
+//	  }
+    }
 }
 
 /**
