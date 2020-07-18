@@ -51,6 +51,7 @@ osThreadId askForDataTaskHandle;
 osThreadId presentationTaskHandle;
 osThreadId communicationTaskHandle;
 osMutexId uartMutexHandle;
+osMutexId dataMutexHandle;
 xQueueHandle msgQueueHandle;
 uint8_t sensorObjectCount;
 uint8_t whichSensorWrites;
@@ -122,6 +123,7 @@ int main(void)
   /* USER CODE BEGIN RTOS_MUTEX */
   /* add mutexes, ... */
   uartMutexHandle = xSemaphoreCreateMutex();
+  dataMutexHandle = xSemaphoreCreateMutex();
   /* USER CODE END RTOS_MUTEX */
 
   /* USER CODE BEGIN RTOS_SEMAPHORES */
@@ -331,7 +333,7 @@ void StartDefaultTask(void const * argument)
 	  }
 
 	  //
-	  //osDelay(DELAY_TIME);
+//	  osDelay(DELAY_TIME);
 
 
   }
@@ -387,6 +389,7 @@ void PresentationTaskThread(void const * argument)
 			char name[MAX_NAME_LEN]; int i;
 			memset(name, 0x00, sizeof(name));
 			//
+			xSemaphoreTake(dataMutexHandle, DELAY_TIME);
 			while(newData){ //problem klienta byl z synchronizacja wartosci tej zmiennej? chcial wypisywac dataBLE[-1][..]?
 //			if(newData){ //problem klienta byl z synchronizacja wartosci tej zmiennej? chcial wypisywac dataBLE[-1][..]?
 				newData--;
@@ -409,6 +412,7 @@ void PresentationTaskThread(void const * argument)
 							  temp, tempDecimal, humid, humidDecimal);
 				}
 			}
+			xSemaphoreGive(dataMutexHandle);
 		}
 	}
 }

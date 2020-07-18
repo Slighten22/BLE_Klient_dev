@@ -41,6 +41,7 @@
 #include "bluenrg_hal_aci.h"
 
 #include "app_x-cube-ble1.h"
+#include "cmsis_os.h"
 #include <stdbool.h>
 
 //
@@ -48,6 +49,7 @@ extern uint8_t dataBLE[][MSG_LEN];
 //extern uint8_t dataBLE[];
 extern uint8_t newData;
 extern bool newDataPresent;
+extern osMutexId dataMutexHandle;
 
 extern uint8_t whichLoopIteration;
 extern uint8_t whichServerConnecting;
@@ -354,16 +356,12 @@ void GATT_Notification_CB(uint16_t attr_handle, uint8_t attr_len, uint8_t *attr_
 {
 	/* !Odebrane dane od servera! */
     if (attr_handle == tx_handle+1 && attr_len != 0 && *attr_value != '\0') {
-//      for(int i=0; i<attr_len && i<MSG_LEN; i++){
-//		  dataBLE[newData][i] = *(attr_value+i);
-//	  }
-	strncpy((char *)dataBLE[newData], (char *)attr_value, (size_t)(attr_len <= MSG_LEN ? attr_len : MSG_LEN));
-
-      //?
-//      if(client_ready){
-      	  newDataPresent = true;
-		  newData++;
-//	  }
+    	xSemaphoreTake(dataMutexHandle, DELAY_TIME);
+    	memset((char *)dataBLE[newData], '\0', MSG_LEN);
+    	strncpy((char *)dataBLE[newData], (char *)attr_value, (size_t)(attr_len <= MSG_LEN ? attr_len : MSG_LEN));
+      	newDataPresent = true;
+      	newData++;
+      	xSemaphoreGive(dataMutexHandle);
     }
 }
 
