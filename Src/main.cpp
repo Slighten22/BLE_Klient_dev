@@ -56,13 +56,8 @@ uint8_t sensorObjectCount;
 uint8_t whichSensorWrites;
 uint8_t whichLoopIteration;
 uint8_t sentConfigurationMsg[20];
-uint8_t counter = 0;
-
-//
-uint8_t newData = 0;
-//bool newData;
+uint8_t newData;
 bool newDataPresent;
-
 char uartData[50];
 bool newConfig;
 extern volatile int connected;
@@ -78,11 +73,7 @@ void StartDefaultTask(void const * argument);
 /* USER CODE BEGIN PFP */
 void AskForDataTaskThread(void const * argument);
 void PresentationTaskThread(void const * argument);
-
-//
-//void CommunicationTaskThread(void const * argument);
-//void vApplicationStackOverflowHook( TaskHandle_t xTask, char *pcTaskName );
-
+void CommunicationTaskThread(void const * argument);
 void presentDataFromSensor(uint8_t which);
 void delayMicroseconds(uint32_t us);
 void prepareNewConfig(uint8_t sensorType, uint16_t interval, uint8_t *name);
@@ -159,9 +150,8 @@ int main(void)
 	osThreadDef(presentationTask, PresentationTaskThread, osPriorityNormal, 0, /*128*/512);
 	presentationTaskHandle = osThreadCreate(osThread(presentationTask), NULL);
 
-	//
-//	osThreadDef(communicationTask, CommunicationTaskThread, osPriorityLow, 0, /*128*/256);
-//	communicationTaskHandle = osThreadCreate(osThread(communicationTask), NULL);
+	osThreadDef(communicationTask, CommunicationTaskThread, osPriorityLow, 0, 128/*256*/);
+	communicationTaskHandle = osThreadCreate(osThread(communicationTask), NULL);
   /* USER CODE END RTOS_THREADS */
 
   /* Start scheduler */
@@ -332,10 +322,6 @@ void StartDefaultTask(void const * argument)
   /* Infinite loop */
   for(;;)
   {
-	  //
-	  //printf("\r\nFree Heap size: %d\r\n", (int)xPortGetFreeHeapSize());
-	  //printf("Default task stack pre: %lu\r\n", uxTaskGetStackHighWaterMark(NULL));
-
 	  if(client_ready){
 		  //Wyslij sygnal do taska odczytu ze powinien teraz sie uruchomic
 		  xTaskNotify(askForDataTaskHandle, 0x01, eSetBits);
@@ -344,10 +330,8 @@ void StartDefaultTask(void const * argument)
 	  	  MX_BlueNRG_MS_Process();
 	  }
 
-
 	  //
 	  //osDelay(DELAY_TIME);
-
 
 
   }
@@ -365,12 +349,6 @@ void AskForDataTaskThread(void const * argument)
 		xTaskNotifyWait(pdFALSE, 0xFF, &notifValue, portMAX_DELAY);
 		if((notifValue&0x01) != 0x00) //Sprawdza czy notifValue zawiera wartosc ktora wyslal task supervisora
 		{
-
-
-		  //
-		  //printf("Ask for data task stack pre: %lu\r\n", uxTaskGetStackHighWaterMark(NULL));
-
-
 		  //
 		  //bez wysylania danych o konfiguracji!
 		  //TODO: prymitywne wyslanie danych konfiguracji (docelowo bedzie do tego interfejs)
@@ -383,9 +361,6 @@ void AskForDataTaskThread(void const * argument)
 //		  counter++;
 
 	      MX_BlueNRG_MS_Process();
-
-	      //!!!
-//	      /*while*/if(newData > 0){ //uruchom task prezentacji tylko wtedy, gdy przyjda nowe dane
 
 	      //!
 	      if(newDataPresent == true){ //uruchom task prezentacji tylko wtedy, gdy przyjda nowe dane
@@ -408,39 +383,23 @@ void PresentationTaskThread(void const * argument)
 		xTaskNotifyWait(pdFALSE, 0xFF, &notifValue, portMAX_DELAY);
 		if((notifValue&0x02) != 0x00) //Sprawdza czy notifValue zawiera wartosc ktora wyslal task odczytu
 		{
-
-			//
-			//printf("Presentation task stack pre: %lu\r\n", uxTaskGetStackHighWaterMark(NULL));
-
-
 			//Format: nazwa_czujnika '\0' dane
 			char name[MAX_NAME_LEN]; int i;
 			memset(name, 0x00, sizeof(name));
 			//
-			if(newData){ //problem klienta byl z synchronizacja wartosci tej zmiennej? chcial wypisywac dataBLE[-1][..]?
+			while(newData){ //problem klienta byl z synchronizacja wartosci tej zmiennej? chcial wypisywac dataBLE[-1][..]?
+//			if(newData){ //problem klienta byl z synchronizacja wartosci tej zmiennej? chcial wypisywac dataBLE[-1][..]?
 				newData--;
-//				newData = 0; //problem klienta byl z synchronizacja wartosci tej zmiennej? chcial wypisywac dataBLE[-1][..]?
 				for(i=0; dataBLE[newData][i] != '\0' && i<MAX_NAME_LEN; i++){
 					name[i] = dataBLE[newData][i];
 				}
-//				for(i=0; dataBLE[i] != '\0' && i<MAX_NAME_LEN; i++){
-//					name[i] = dataBLE[i];
-//				}
 				printf("\r\nCzujnik %s\r\n", name);
-
 				uint32_t dataBits = (dataBLE[newData][i+1] << 24) + (dataBLE[newData][i+2] << 16)
 								  + (dataBLE[newData][i+3] << 8)  + (dataBLE[newData][i+4]);
 				uint8_t checksumBits = dataBLE[newData][i+5];
 				if(checkIfTempSensorReadoutCorrect(dataBits, checksumBits)){
 					uint16_t humid = (dataBLE[newData][i+1] << 8) | dataBLE[newData][i+2];
 					uint16_t temp  = (dataBLE[newData][i+3] << 8) | dataBLE[newData][i+4];
-	//			uint32_t dataBits = (dataBLE[i+1] << 24) + (dataBLE[i+2] << 16)
-	//							  + (dataBLE[i+3] << 8)  + (dataBLE[i+4]);
-	//			uint8_t checksumBits = dataBLE[i+5];
-	//			if(checkIfTempSensorReadoutCorrect(dataBits, checksumBits)){
-	//				uint16_t humid = (dataBLE[i+1] << 8) | dataBLE[i+2];
-	//				uint16_t temp  = (dataBLE[i+3] << 8) | dataBLE[i+4];
-
 					uint16_t humidDecimal = humid%10;
 					uint16_t tempDecimal  = temp%10;
 					temp = temp/(uint16_t)10;
@@ -455,22 +414,18 @@ void PresentationTaskThread(void const * argument)
 }
 
 //
-//void CommunicationTaskThread(void const * argument)
-//{
-//	char receivedData[50];
-//	/* Infinite loop */
-//	for(;;)
-//	{
-//
-//		//
-//		printf("Communication task stack: %lu\r\n", uxTaskGetStackHighWaterMark(NULL));
-//
-//		xQueueReceive(msgQueueHandle, receivedData, DELAY_TIME); //delayTime?
-//		xSemaphoreTake(uartMutexHandle, DELAY_TIME); //delayTime?
-//		printf(receivedData);
-//		xSemaphoreGive(uartMutexHandle);
-//	}
-//}
+void CommunicationTaskThread(void const * argument)
+{
+	char receivedData[50];
+	/* Infinite loop */
+	for(;;)
+	{
+		xQueueReceive(msgQueueHandle, receivedData, DELAY_TIME); //delayTime?
+		xSemaphoreTake(uartMutexHandle, DELAY_TIME); //delayTime?
+		printf(receivedData);
+		xSemaphoreGive(uartMutexHandle);
+	}
+}
 /* USER CODE END 6 */
 
 /* USER CODE BEGIN 7 */
@@ -511,16 +466,6 @@ bool checkIfTempSensorReadoutCorrect(uint32_t dataBits, uint8_t checksumBits){
 		return true;
 	return false;
 }
-
-
-//
-//void vApplicationStackOverflowHook( TaskHandle_t xTask, char *pcTaskName ){
-//	while(1){
-//		printf("\r\nStack Overflow in task: %s\r\n", pcTaskName);
-//	}
-//}
-
-
 /* USER CODE END 7 */
 
 /**

@@ -9,4 +9,4 @@ sample_service.c:299:6:Attribute_Modified_CB	0	static
 sample_service.c:315:6:GAP_ConnectionComplete_CB	24	static
 sample_service.c:332:6:GAP_DisconnectionComplete_CB	8	static
 sample_service.c:353:6:GATT_Notification_CB	16	static
-sample_service.c:378:6:user_notify	0	static
+sample_service.c:377:6:user_notify	0	static

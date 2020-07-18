@@ -354,11 +354,10 @@ void GATT_Notification_CB(uint16_t attr_handle, uint8_t attr_len, uint8_t *attr_
 {
 	/* !Odebrane dane od servera! */
     if (attr_handle == tx_handle+1 && attr_len != 0 && *attr_value != '\0') {
-      //TODO: wszystkie wiadomosci otrzymane podczas jednego slotu wlozyc do kolejki zeby potem dalo sie wszystko wypisac
-      for(int i=0; i<attr_len && i<MSG_LEN; i++){
-		  dataBLE[newData][i] = *(attr_value+i);
-//		  dataBLE[i] = *(attr_value+i);
-	  }//      strncpy((char *)dataBLE[newData], (char *)attr_value, (size_t)(attr_len <= MSG_LEN ? attr_len : MSG_LEN));
+//      for(int i=0; i<attr_len && i<MSG_LEN; i++){
+//		  dataBLE[newData][i] = *(attr_value+i);
+//	  }
+	strncpy((char *)dataBLE[newData], (char *)attr_value, (size_t)(attr_len <= MSG_LEN ? attr_len : MSG_LEN));
 
       //?
 //      if(client_ready){

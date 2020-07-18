@@ -38,8 +38,6 @@ extern "C" {
 #include <stdbool.h>
 #define MAX_MSGS 5 //ile max wiadomosci moze odebrac i zapamietac klient w czasie jednego slotu
 #define MSG_LEN 20
-//
-//uint8_t dataBLE[MSG_LEN];
 uint8_t dataBLE[MAX_MSGS][MSG_LEN];
 //Delay time between following reads in ms
 #define DELAY_TIME 3000
