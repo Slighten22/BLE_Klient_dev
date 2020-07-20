@@ -296,17 +296,19 @@ static void User_Process(void)
       enableNotification(); /* Wlacz wymiane danych? */
     }
 
-    /* Klient wysyla dane serwerowi */
-    if(client_ready)
+    /* Klient wysyla dane serwerowi TODO: lepiej zeby to bylo w sample_service.c? */
+
+
+    //
+    //proba wyslania konfiguracji - dopiero gdy oba servery polaczone, do drugiego servera
+//    if(client_ready)
+    if(client_ready && connected && end_read_tx_char_handle && end_read_rx_char_handle
+      && notification_enabled && whichServerConnecting == 2)
     {
 		if(newConfig == true){
 		  newConfig = false; //TODO: problem - wiadomosc z konfiguracja moze byc gubiona, nie sprawdzam tego! rozwiazanie - ACK?
-		  //
-//		  sendData(sentConfigurationMsg, sizeof(sentConfigurationMsg));
-
+		  sendData(sentConfigurationMsg, sizeof(sentConfigurationMsg));
 		}
-		/* Wyslij konfiguracje w odpowiednim formacie np sekwencja postaci typ sensora, adres pinu, ile bajtow danych sie spodziewamy */
-
     	/* Wymiana danych dla konfiguracji zdalnej slave'a:
     	 * 1. master wysyla do slave'a info o konfiguracji w odpowiednim formacie (np. sekwencja rodzaj_sensora adres_pinu)
     	 * 2. slave przeparsuje sobie ta konfiguracje i odczyta info jakie ma sensory i na jakich pinach
@@ -316,23 +318,26 @@ static void User_Process(void)
     	 * */
     }
 
-    if (connected && end_read_tx_char_handle && end_read_rx_char_handle && notification_enabled)
+    if (connected && end_read_tx_char_handle && end_read_rx_char_handle && notification_enabled && !client_ready)
     {
     	client_ready = true;
     }
 
     //
-    if(client_ready){
-    	if(whichServerConnecting == 1){
-			set_connectable = true;
-			connected = false;
-			start_read_tx_char_handle = false;
-			start_read_rx_char_handle = false;
-			end_read_tx_char_handle = false;
-			end_read_rx_char_handle = false;
-			notification_enabled = false;
-			whichServerConnecting++;
-    	}
+    if(client_ready && whichServerConnecting == 1){
+		set_connectable = true;
+		connected = false;
+		start_read_tx_char_handle = false;
+		start_read_rx_char_handle = false;
+		end_read_tx_char_handle = false;
+		end_read_rx_char_handle = false;
+		notification_enabled = false;
+		whichServerConnecting++;
+
+
+		//!
+		client_ready = false;
+
     }
 }
 

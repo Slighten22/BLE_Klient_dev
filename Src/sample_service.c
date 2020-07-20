@@ -49,7 +49,7 @@ extern uint8_t dataBLE[][MSG_LEN];
 //extern uint8_t dataBLE[];
 extern uint8_t newData;
 extern bool newDataPresent;
-extern osMutexId dataMutexHandle;
+extern osMutexId newDataMutexHandle;
 
 extern uint8_t whichLoopIteration;
 extern uint8_t whichServerConnecting;
@@ -163,6 +163,7 @@ void Make_Connection(void)
     
     printf("Client Create Connection\n");
 
+    //
     tBDAddr bdaddr1 = {0xaa, 0x00, 0x00, 0xE1, 0x80, 0x02};
     tBDAddr bdaddr2 = {0xcc, 0x00, 0x00, 0xE1, 0x80, 0x02};
 
@@ -204,8 +205,9 @@ void startReadTXCharHandle(void)
     PRINTF("Start reading TX Char Handle\n");
     
     //TODO inne charakterystyki TX, RX (roznica na 12. bajcie)
+    //
 	/*const*/ uint8_t charUuid128_TX[16] = {0x66,0x9a,0x0c,0x20,0x00,0x08,0x96,0x9e,0xe2,0x11,0x9e,0xb1,0xe1/*0xe4*/,0xf2,0x73,0xd9};
-    if(whichServerConnecting == 1){}
+	if(whichServerConnecting == 1){}
     	/* OK */
     else if(whichServerConnecting == 2)
     	charUuid128_TX[12] = 0xe4;
@@ -226,6 +228,7 @@ void startReadRXCharHandle(void)
     PRINTF("Start reading RX Char Handle\n");
     
     //TODO inne charakterystyki TX, RX (roznica na 3. bajcie)
+    //
     /*const*/ uint8_t charUuid128_RX[16] = {0x66,0x9a,0x0c,0x20,0x00,0x08,0x96,0x9e,0xe2,0x11,0x9e,0xb1,0xe2/*0xe5*/,0xf2,0x73,0xd9};
     if(whichServerConnecting == 1) {}
     	/* OK */
@@ -248,7 +251,7 @@ void receiveData(uint8_t* data_buffer, uint8_t Nb_bytes)
   BSP_LED_Off(LED2);
 
   for(int i = 0; i < Nb_bytes; i++) {
-    printf("%c", data_buffer[i]);
+	  printf("%c", data_buffer[i]);
   } //obudowac do wysylania
   // tu moze byc obudowa uartowa/samo wysylanie wartosci temp i wilgotnosci
   fflush(stdout);
@@ -356,12 +359,19 @@ void GATT_Notification_CB(uint16_t attr_handle, uint8_t attr_len, uint8_t *attr_
 {
 	/* !Odebrane dane od servera! */
     if (attr_handle == tx_handle+1 && attr_len != 0 && *attr_value != '\0') {
-    	xSemaphoreTake(dataMutexHandle, DELAY_TIME);
+    	xSemaphoreTake(newDataMutexHandle, DELAY_TIME);
     	memset((char *)dataBLE[newData], '\0', MSG_LEN);
-    	strncpy((char *)dataBLE[newData], (char *)attr_value, (size_t)(attr_len <= MSG_LEN ? attr_len : MSG_LEN));
-      	newDataPresent = true;
+
+    	//
+    	//strncpy((char *)dataBLE[newData], (char *)attr_value, (size_t)(attr_len <= MSG_LEN ? attr_len : MSG_LEN));
+    	for(int i=0; i<=attr_len && i<=MSG_LEN; i++){
+    		dataBLE[newData][i] = *(attr_value+i);
+    	}
+
+
+
       	newData++;
-      	xSemaphoreGive(dataMutexHandle);
+      	xSemaphoreGive(newDataMutexHandle);
     }
 }
 

@@ -51,14 +51,14 @@ osThreadId askForDataTaskHandle;
 osThreadId presentationTaskHandle;
 osThreadId communicationTaskHandle;
 osMutexId uartMutexHandle;
-osMutexId dataMutexHandle;
+osMutexId newDataMutexHandle;
 xQueueHandle msgQueueHandle;
+uint16_t counter;
 uint8_t sensorObjectCount;
 uint8_t whichSensorWrites;
 uint8_t whichLoopIteration;
 uint8_t sentConfigurationMsg[20];
 uint8_t newData;
-bool newDataPresent;
 char uartData[50];
 bool newConfig;
 extern volatile int connected;
@@ -123,7 +123,7 @@ int main(void)
   /* USER CODE BEGIN RTOS_MUTEX */
   /* add mutexes, ... */
   uartMutexHandle = xSemaphoreCreateMutex();
-  dataMutexHandle = xSemaphoreCreateMutex();
+  newDataMutexHandle = xSemaphoreCreateMutex();
   /* USER CODE END RTOS_MUTEX */
 
   /* USER CODE BEGIN RTOS_SEMAPHORES */
@@ -333,7 +333,7 @@ void StartDefaultTask(void const * argument)
 	  }
 
 	  //
-//	  osDelay(DELAY_TIME);
+	  //osDelay(DELAY_TIME/30); //wlaczenie delaya na 100 milisek. powoduje wypisywanie smieci w terminalu - czemu?
 
 
   }
@@ -352,24 +352,24 @@ void AskForDataTaskThread(void const * argument)
 		if((notifValue&0x01) != 0x00) //Sprawdza czy notifValue zawiera wartosc ktora wyslal task supervisora
 		{
 		  //
-		  //bez wysylania danych o konfiguracji!
 		  //TODO: prymitywne wyslanie danych konfiguracji (docelowo bedzie do tego interfejs)
-//		  if(counter == 0){
-//			  prepareNewConfig(DHT22, 4, (uint8_t *)"Pokoj1");
+		  if(counter == /*0*/UINT16_MAX/16){
+			  prepareNewConfig(DHT22, 4, (uint8_t *)"Pokoj1");
+		  }
+//		  if(counter == /*4*/UINT16_MAX/8){
+//			  prepareNewConfig(DHT22, 5, (uint8_t *)"Kuchnia1");
 //		  }
-//		  if(counter == 4){
-//			  prepareNewConfig(DHT22, 4, (uint8_t *)"Kuchnia1");
-//		  }
-//		  counter++;
+		  counter = (counter+1)%(UINT16_MAX/4);
 
 	      MX_BlueNRG_MS_Process();
 
 	      //!
-	      if(newDataPresent == true){ //uruchom task prezentacji tylko wtedy, gdy przyjda nowe dane
-	       	  newDataPresent = false;
-	    	  //Wyslij sygnal do taska od prezentacji ze powinien teraz sie uruchomic
+	      xSemaphoreTake(newDataMutexHandle, DELAY_TIME);
+	      if(newData){ //uruchom task prezentacji tylko wtedy, gdy przyjda nowe dane
+	       	  //Wyslij sygnal do taska od prezentacji ze powinien teraz sie uruchomic
 	    	  xTaskNotify(presentationTaskHandle, 0x02, eSetBits);
 	      }
+	      xSemaphoreGive(newDataMutexHandle);
 		}
 	}
 }
@@ -389,14 +389,13 @@ void PresentationTaskThread(void const * argument)
 			char name[MAX_NAME_LEN]; int i;
 			memset(name, 0x00, sizeof(name));
 			//
-			xSemaphoreTake(dataMutexHandle, DELAY_TIME);
+			xSemaphoreTake(newDataMutexHandle, DELAY_TIME);
 			while(newData){ //problem klienta byl z synchronizacja wartosci tej zmiennej? chcial wypisywac dataBLE[-1][..]?
 //			if(newData){ //problem klienta byl z synchronizacja wartosci tej zmiennej? chcial wypisywac dataBLE[-1][..]?
 				newData--;
 				for(i=0; dataBLE[newData][i] != '\0' && i<MAX_NAME_LEN; i++){
 					name[i] = dataBLE[newData][i];
 				}
-				printf("\r\nCzujnik %s\r\n", name);
 				uint32_t dataBits = (dataBLE[newData][i+1] << 24) + (dataBLE[newData][i+2] << 16)
 								  + (dataBLE[newData][i+3] << 8)  + (dataBLE[newData][i+4]);
 				uint8_t checksumBits = dataBLE[newData][i+5];
@@ -408,11 +407,12 @@ void PresentationTaskThread(void const * argument)
 					temp = temp/(uint16_t)10;
 					humid= humid/(uint16_t)10;
 					//xQueueSend(msgQueueHandle, (uint8_t *)uartData, 100);
+					printf("\r\nCzujnik %s\r\n", name);
 					printf("Temperatura\t %hu.%huC\r\nWilgotnosc\t %hu.%hu%%\r\n",
 							  temp, tempDecimal, humid, humidDecimal);
 				}
 			}
-			xSemaphoreGive(dataMutexHandle);
+			xSemaphoreGive(newDataMutexHandle);
 		}
 	}
 }
