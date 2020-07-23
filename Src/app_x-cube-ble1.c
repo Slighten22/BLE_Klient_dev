@@ -82,6 +82,7 @@ extern volatile int     connected;
 extern volatile uint8_t notification_enabled;
 extern volatile uint8_t client_ready;
 extern volatile uint8_t discovery_started;
+extern volatile uint8_t discovery_finished;
 
 extern volatile uint8_t end_read_tx_char_handle;
 extern volatile uint8_t end_read_rx_char_handle;
@@ -156,7 +157,7 @@ void MX_BlueNRG_MS_Init(void)
    */
   hci_reset();
   
-  //
+  /* Wpisanie trybu pracy urzadzenia: tryb 3 - "Mode 3: master/slave, 8 connections, RAM1 and RAM2." */
   const uint8_t stackMode[] = {0x03};
   ret = aci_hal_write_config_data(CONFIG_DATA_MODE_OFFSET,
                                   CONFIG_DATA_MODE_LEN,
@@ -203,9 +204,9 @@ void MX_BlueNRG_MS_Init(void)
 //                                     USE_FIXED_PIN_FOR_PAIRING,
 //                                     123456,
 //                                     BONDING);
-  if (ret == BLE_STATUS_SUCCESS) {
-    printf("BLE Stack Initialized.\n");
-  }
+//  if (ret == BLE_STATUS_SUCCESS) {
+//    printf("BLE Stack Initialized.\n");
+//  }
   
   printf("CLIENT: BLE Stack Initialized\n");
 
@@ -257,28 +258,24 @@ static void User_Init(void)
  */
 static void User_Process(void)
 {
+	/* Wyszukiwanie serverow przez klienta */
+	if(!discovery_started){
+		tBleStatus ret = aci_gap_start_general_discovery_proc(0x10, 0x10, PUBLIC_ADDR, 0x01); //filter duplicates
+		//The two devices are discovered through the EVT_LE_ADVERTISING_REPORT events (sample_service.c).
+		if (ret != BLE_STATUS_SUCCESS) {
+			printf("Error starting device discovery process!\r\n");
+		}
+		discovery_started = TRUE;
+	}
 
-	//
-	//TODO: wyszukiwanie serverow przez klienta
-//	if(!discovery_started){
-//		//do not filter duplicates
-//		tBleStatus ret = aci_gap_start_general_discovery_proc(0x10, 0x10, PUBLIC_ADDR, 0x00);
-//		//The two devices are discovered through the EVT_LE_ADVERTISING_REPORT events.
-//		if(ret){
-//			//
-//		}
-//		discovery_started = TRUE;
-//		delayMicrosecondsBLE(1000000);
-//	}
-
-  if (set_connectable)
-//  if(set_connectable /*&& discovery_started*/)
-  {
-    /* Establish connection with remote device */
-    Make_Connection(); /* Stworzenie (nie nawiazanie) polaczenia (master) lub ustawienie wykrywalnosci (slave) */
-    set_connectable = FALSE;
-    user_button_init_state = BSP_PB_GetState(BUTTON_KEY);
-  }
+//  if (set_connectable)
+	if(set_connectable && discovery_finished)
+	{
+		/* Establish connection with remote device */
+		Make_Connection(); /* Stworzenie (nie nawiazanie) polaczenia (master) lub ustawienie wykrywalnosci (slave) */
+		set_connectable = FALSE;
+		user_button_init_state = BSP_PB_GetState(BUTTON_KEY);
+	}
 
     /* Start TX handle Characteristic dynamic discovery if not yet done */
 	/* z user_notify ustawiamy connected po nawiazaniu polaczenia = Skad jest wywolywane GAP_ConnectionComplete_CB */
@@ -296,9 +293,8 @@ static void User_Process(void)
       enableNotification(); /* Wlacz wymiane danych? */
     }
 
+
     /* Klient wysyla dane serwerowi TODO: lepiej zeby to bylo w sample_service.c? */
-
-
     //
     //proba wyslania konfiguracji - dopiero gdy oba servery polaczone, do drugiego servera
 //    if(client_ready)

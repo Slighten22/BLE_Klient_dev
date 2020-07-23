@@ -62,7 +62,7 @@ uint8_t newData;
 char uartData[50];
 bool newConfig;
 extern volatile int connected;
-extern /*volatile*/ uint8_t client_ready;
+extern volatile uint8_t client_ready;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -352,14 +352,18 @@ void AskForDataTaskThread(void const * argument)
 		if((notifValue&0x01) != 0x00) //Sprawdza czy notifValue zawiera wartosc ktora wyslal task supervisora
 		{
 		  //
-		  //TODO: prymitywne wyslanie danych konfiguracji (docelowo bedzie do tego interfejs)
+		  //prymitywne wyslanie danych konfiguracji (docelowo bedzie do tego interfejs)
+		  //!zwrocic uwage na delay glownego taska i wartosc countera!
 		  if(counter == /*0*/UINT16_MAX/16){
 			  prepareNewConfig(DHT22, 4, (uint8_t *)"Pokoj1");
 		  }
-//		  if(counter == /*4*/UINT16_MAX/8){
-//			  prepareNewConfig(DHT22, 5, (uint8_t *)"Kuchnia1");
-//		  }
-		  counter = (counter+1)%(UINT16_MAX/4);
+		  if(counter == /*4*/UINT16_MAX/8){
+			  prepareNewConfig(DHT22, 5, (uint8_t *)"Kuchnia1");
+		  }
+		  //uwazac zeby tylko raz wysylac pozadana konfiguracje! a nie w petli co przepelnienie wartosci countera!
+		  if(counter <= UINT16_MAX/8){
+			  counter++;
+		  }
 
 	      MX_BlueNRG_MS_Process();
 
