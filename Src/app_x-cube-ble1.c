@@ -79,11 +79,13 @@ static volatile uint8_t user_button_pressed = 0;
 #endif
 
 extern volatile uint8_t set_connectable;
-extern volatile int     connected;
+extern volatile uint8_t all_servers_connected;
 extern volatile uint8_t notification_enabled;
 extern volatile uint8_t client_ready;
 extern volatile uint8_t discovery_started;
 extern volatile uint8_t discovery_finished;
+extern volatile uint16_t connectionHandles[];
+extern volatile bool services_discovered;
 
 extern volatile uint8_t end_read_tx_char_handle;
 extern volatile uint8_t end_read_rx_char_handle;
@@ -274,73 +276,85 @@ static void User_Process(void)
 		/* Establish connection with first remote device */
 		if(foundDevicesCount > 0){
 			Make_Connection(); /* Stworzenie (nie nawiazanie) polaczenia (master) lub ustawienie wykrywalnosci (slave) */
-			set_connectable = FALSE;
 		}
 		else{
 			printf("No connectable devices found!\r\n");
 		}
+		set_connectable = FALSE;
 	}
 
-	//przebudowa Make_Connection() - to co nizej tez bedzie trzeba zmienic
+	//na razie nie wiem, czy ten sposob do czegos prowadzi -> na razie rezygnuje z niego
+	//tBleStatus aci_gatt_disc_all_prim_services(uint16_t conn_handle)
+	//This command will start the GATT client procedure to discover all primary services on the server.
+//	if(all_servers_connected && !services_discovered){
+//		tBleStatus ret = aci_gatt_disc_all_prim_services(connectionHandles[0]);
+//		if (ret != BLE_STATUS_SUCCESS) {
+//			printf("Error starting service discovery process!\r\n");
+//		}
+//		//NIE tutaj
+//		services_discovered = TRUE;
+//	}
 
+
+	//TODO: sprobowac tego co nizej na stalych i tych samych dla kazdego servera UUID
     /* Start TX handle Characteristic dynamic discovery if not yet done */
-	/* z user_notify ustawiamy connected po nawiazaniu polaczenia = Skad jest wywolywane GAP_ConnectionComplete_CB */
-    if (connected && !end_read_tx_char_handle){
+	/* z user_notify ustawiamy all_servers_connected po nawiazaniu polaczenia = Skad jest wywolywane GAP_ConnectionComplete_CB */
+    if (all_servers_connected && !end_read_tx_char_handle){
       startReadTXCharHandle(); //trzeba wiedziec, od ktorego polaczenia!
     }
-    /* Start RX handle Characteristic dynamic discovery if not yet done */
-    else if (connected && !end_read_rx_char_handle){      
-      startReadRXCharHandle();
-    }
-    
-    if (connected && end_read_tx_char_handle && end_read_rx_char_handle && !notification_enabled) 
-    {
-      BSP_LED_Off(LED2); /* end of the connection and chars discovery phase */
-      enableNotification(); /* Wlacz wymiane danych? */
-    }
-
-
-    /* Klient wysyla dane serwerowi TODO: lepiej zeby to bylo w sample_service.c? */
-    //
-    //proba wyslania konfiguracji - dopiero gdy oba servery polaczone, do drugiego servera
-//    if(client_ready)
-    if(client_ready && connected && end_read_tx_char_handle && end_read_rx_char_handle
-      && notification_enabled && whichServerConnecting == 2)
-    {
-		if(newConfig == true){
-		  newConfig = false; //TODO: problem - wiadomosc z konfiguracja moze byc gubiona, nie sprawdzam tego! rozwiazanie - ACK?
-		  sendData(sentConfigurationMsg, sizeof(sentConfigurationMsg));
-		}
-    	/* Wymiana danych dla konfiguracji zdalnej slave'a:
-    	 * 1. master wysyla do slave'a info o konfiguracji w odpowiednim formacie (np. sekwencja rodzaj_sensora adres_pinu)
-    	 * 2. slave przeparsuje sobie ta konfiguracje i odczyta info jakie ma sensory i na jakich pinach
-    	 * 3. slave wywola funckje do odczytania z tych sensorow ktore dostal w konfiguracji
-    	 * 4. funkcja od odczytywania z wielu sensorow da znac (?) gdy bedzie miec juz wszystkie dane
-    	 * 5. slave wysle odpowiednia liczbe bajtow danych (obliczona wczesniej na podst. konfiguracji) masterowi
-    	 * */
-    }
-
-    if (connected && end_read_tx_char_handle && end_read_rx_char_handle && notification_enabled && !client_ready)
-    {
-    	client_ready = true;
-    }
-
-    //
-    if(client_ready && whichServerConnecting == 1){
-		set_connectable = true;
-		connected = false;
-		start_read_tx_char_handle = false;
-		start_read_rx_char_handle = false;
-		end_read_tx_char_handle = false;
-		end_read_rx_char_handle = false;
-		notification_enabled = false;
-		whichServerConnecting++;
-
-
-		//!
-		client_ready = false;
-
-    }
+//    /* Start RX handle Characteristic dynamic discovery if not yet done */
+//    else if (all_servers_connected && !end_read_rx_char_handle){
+//      startReadRXCharHandle();
+//    }
+//
+//    if (/*connected &&*/ end_read_tx_char_handle && end_read_rx_char_handle && !notification_enabled)
+//    {
+//      BSP_LED_Off(LED2); /* end of the connection and chars discovery phase */
+//      enableNotification(); /* Wlacz wymiane danych? */
+//    }
+//
+//
+//    /* Klient wysyla dane serwerowi TODO: lepiej zeby to bylo w sample_service.c? */
+//    //
+//    //proba wyslania konfiguracji - dopiero gdy oba servery polaczone, do drugiego servera
+////    if(client_ready)
+//    if(client_ready && all_servers_connected && end_read_tx_char_handle && end_read_rx_char_handle
+//      && notification_enabled && whichServerConnecting == 2)
+//    {
+//		if(newConfig == true){
+//		  newConfig = false; //TODO: problem - wiadomosc z konfiguracja moze byc gubiona, nie sprawdzam tego! rozwiazanie - ACK?
+//		  sendData(sentConfigurationMsg, sizeof(sentConfigurationMsg));
+//		}
+//    	/* Wymiana danych dla konfiguracji zdalnej slave'a:
+//    	 * 1. master wysyla do slave'a info o konfiguracji w odpowiednim formacie (np. sekwencja rodzaj_sensora adres_pinu)
+//    	 * 2. slave przeparsuje sobie ta konfiguracje i odczyta info jakie ma sensory i na jakich pinach
+//    	 * 3. slave wywola funckje do odczytania z tych sensorow ktore dostal w konfiguracji
+//    	 * 4. funkcja od odczytywania z wielu sensorow da znac (?) gdy bedzie miec juz wszystkie dane
+//    	 * 5. slave wysle odpowiednia liczbe bajtow danych (obliczona wczesniej na podst. konfiguracji) masterowi
+//    	 * */
+//    }
+//
+//    if (all_servers_connected && end_read_tx_char_handle && end_read_rx_char_handle && notification_enabled && !client_ready)
+//    {
+//    	client_ready = true;
+//    }
+//
+//    //
+//    if(client_ready && whichServerConnecting == 1){
+//		set_connectable = true;
+//		//connected = false;
+//		start_read_tx_char_handle = false;
+//		start_read_rx_char_handle = false;
+//		end_read_tx_char_handle = false;
+//		end_read_rx_char_handle = false;
+//		notification_enabled = false;
+//		whichServerConnecting++;
+//
+//
+//		//!
+//		client_ready = false;
+//
+//    }
 }
 
 /**

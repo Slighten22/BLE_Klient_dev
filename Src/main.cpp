@@ -61,7 +61,7 @@ uint8_t sentConfigurationMsg[20];
 uint8_t newData;
 char uartData[50];
 bool newConfig;
-extern volatile int connected;
+extern volatile int all_servers_connected;
 extern volatile uint8_t client_ready;
 /* USER CODE END PV */
 

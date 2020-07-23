@@ -44,26 +44,7 @@
 #include "cmsis_os.h"
 #include <stdbool.h>
 
-//skanowanie serverow przez klienta
 #define MAX_CONNECTIONS 8 //Mode 3: master/slave, max. 8 connections
-typedef struct FoundDeviceInfo {
-	uint8_t deviceAddressType;
-	tBDAddr deviceAddress;
-} FoundDeviceInfo;
-FoundDeviceInfo foundDevices[MAX_CONNECTIONS];
-uint8_t foundDevicesCount = 0;
-uint8_t connectedDevicesCount = 0;
-
-//
-uint8_t deviceName[4]; //tmp
-
-extern uint8_t dataBLE[][MSG_LEN];
-extern uint8_t newData;
-extern bool newDataPresent;
-extern osMutexId newDataMutexHandle;
-
-extern uint8_t whichLoopIteration;
-extern uint8_t whichServerConnecting;
 
 /** @addtogroup Applications
  *  @{
@@ -81,30 +62,49 @@ extern uint8_t whichServerConnecting;
  * @{
  */
 /* Private variables ---------------------------------------------------------*/
-//TODO tablice, skoro polaczen jest wiecej
-volatile int connected = FALSE; //TODO zmienna sprawdzana a nie jest ustawiana jej wartosc
+volatile uint16_t connectionHandles[MAX_CONNECTIONS];
 volatile uint8_t set_connectable = 1;
+volatile uint8_t client_ready = FALSE;
+volatile uint8_t discovery_started = FALSE;
+volatile uint8_t discovery_finished = FALSE;
+volatile uint8_t all_servers_connected = FALSE;
+volatile bool services_discovered = FALSE;
 
+
+evt_att_read_by_group_resp *resp; //TODO potrzebna jako globalna tylko do debugowania
+uint8_t tmp[13]; //jak wyzej
+//TODO tablice, skoro polaczen jest wiecej
 //TODO zmienna nigdy nie ustawiana a wykorzystana w kilku miejscach
 volatile uint16_t connection_handle = 0;
-volatile uint16_t connectionHandles[MAX_CONNECTIONS];
 volatile uint8_t notification_enabled = FALSE;
 volatile uint8_t start_read_tx_char_handle = FALSE;
 volatile uint8_t start_read_rx_char_handle = FALSE;
 volatile uint8_t end_read_tx_char_handle = FALSE;
 volatile uint8_t end_read_rx_char_handle = FALSE;
-
-volatile uint8_t client_ready = FALSE;
-volatile uint8_t discovery_started = FALSE;
-volatile uint8_t discovery_finished = FALSE;
-
 uint16_t tx_handle; /* Klient zna handle do charakterystyk servera */
 uint16_t rx_handle;
-
 uint16_t sampleServHandle, TXCharHandle, RXCharHandle; /* Server zna handle do swojego serwisu i swoich charakterystyk */
 
 extern uint8_t bnrg_expansion_board;
 extern BLE_RoleTypeDef BLE_Role;
+extern uint8_t dataBLE[][MSG_LEN];
+extern uint8_t newData;
+extern bool newDataPresent;
+extern osMutexId newDataMutexHandle;
+extern uint8_t whichLoopIteration;
+extern uint8_t whichServerConnecting;
+//skanowanie serverow przez klienta
+typedef struct FoundDeviceInfo {
+	uint8_t deviceAddressType;
+	tBDAddr deviceAddress;
+} FoundDeviceInfo;
+FoundDeviceInfo foundDevices[MAX_CONNECTIONS];
+uint8_t foundDevicesCount = 0;
+uint8_t connectedDevicesCount = 0;
+
+//
+//uint8_t deviceName[4]; //lokalna wewnatrz GAP_AdvertisingReport_CB()
+
 /**
  * @}
  */
@@ -208,14 +208,14 @@ void startReadTXCharHandle(void)
   {    
     PRINTF("Start reading TX Char Handle\n");
     
-    //TODO inne charakterystyki TX, RX (roznica na 12. bajcie)
     //
 	/*const*/ uint8_t charUuid128_TX[16] = {0x66,0x9a,0x0c,0x20,0x00,0x08,0x96,0x9e,0xe2,0x11,0x9e,0xb1,0xe1/*0xe4*/,0xf2,0x73,0xd9};
-	if(whichServerConnecting == 1){}
-    	/* OK */
-    else if(whichServerConnecting == 2)
-    	charUuid128_TX[12] = 0xe4;
-    aci_gatt_disc_charac_by_uuid(connection_handle, 0x0001, 0xFFFF, UUID_TYPE_128, charUuid128_TX);
+	//TEST - czy zadziala dla 2 roznych polaczen podanie 2 razy tego samego UUID
+//	if(whichServerConnecting == 1){}
+//    	/* OK */
+//    else if(whichServerConnecting == 2)
+//    	charUuid128_TX[12] = 0xe4;
+    aci_gatt_disc_charac_by_uuid(/*connection_handle*/connectionHandles[0], 0x0001, 0xFFFF, UUID_TYPE_128, charUuid128_TX);
     start_read_tx_char_handle = TRUE;
   }
 }
@@ -331,9 +331,12 @@ void GAP_ConnectionComplete_CB(uint8_t addr[6], uint16_t handle)
     printf("%02X-", addr[i]);
   }
   printf("%02X\r\n", addr[0]);
-  printf("Connection handle: %hu\r\n", handle);
+  printf("Connection handle: %04X\r\n", handle);
   if(connectedDevicesCount < foundDevicesCount){
 	  Make_Connection();
+  }
+  else if(connectedDevicesCount == foundDevicesCount){
+	  all_servers_connected = TRUE;
   }
 }
 
@@ -344,7 +347,7 @@ void GAP_ConnectionComplete_CB(uint8_t addr[6], uint16_t handle)
  */
 void GAP_DisconnectionComplete_CB(void)
 {
-  connected = FALSE;
+  all_servers_connected = FALSE;
   
   printf("Disconnected\n");
   /* Make the device connectable again. */
@@ -380,11 +383,12 @@ void GATT_Notification_CB(uint16_t attr_handle, uint8_t attr_len, uint8_t *attr_
 }
 
 /**
- * @brief  This function is called when the client found an advertising device to which it may connect.
+ * @brief  This function is called when the client found an advertising device to which it may want to connect.
  * @param  adv_info		Structure containing information about the advertising device
  * @retval None
  */
 void GAP_AdvertisingReport_CB(le_advertising_info *adv_info){
+	char deviceName[] = "name";
 	//nazwa - zaczyna sie od bitu o ind. 6, 'test' ma 4 znaki
 	memcpy(deviceName, adv_info->data_RSSI+6, 4);
 	//sprawdzic, czy zgadza sie nazwa = czy chcemy sie polaczyc ze znalezionym urzadzeniem
@@ -460,7 +464,7 @@ void user_notify(void * pData) /* Parsowanie otrzymanego eventu */
 		}
 		break;
 
-	  /* 4 rozne typy eventow EVT_VENDOR: */
+	  /* rozne typy eventow EVT_VENDOR: */
 	  case EVT_VENDOR:
 		{
 		  evt_blue_aci *blue_evt = (void*)event_pckt->data;
@@ -492,6 +496,7 @@ void user_notify(void * pData) /* Parsowanie otrzymanego eventu */
 
 			  /* Odczytwanie charakterystyk slave'a czyli poznawanie TX i RX handles */
 			  case EVT_BLUE_GATT_DISC_READ_CHAR_BY_UUID_RESP:
+			  {
 				if(BLE_Role == CLIENT) {
 				  PRINTF("EVT_BLUE_GATT_DISC_READ_CHAR_BY_UUID_RESP\n");
 
@@ -508,22 +513,48 @@ void user_notify(void * pData) /* Parsowanie otrzymanego eventu */
 					printf("RX Char Handle %04X\r\n", rx_handle);
 				  }
 				}
+			  }
 				break;
+
+
+			  //odkrywanie glownego serwisu
+			  //na razie nie wiem, czy ten sposob do czegos prowadzi -> na razie rezygnuje z niego
+			  case EVT_BLUE_ATT_READ_BY_GROUP_TYPE_RESP:
+			  {
+				  /*evt_att_read_by_group_resp *resp */resp = (void *)blue_evt->data;
+				  memcpy(tmp, resp->attribute_data_list, 13); //adres serwisu??
+				  printf("Discovered main service of the device with connection handle: %hu\r\n", resp->conn_handle);
+			  }
+			  break;
+
 
 			  /* Potrzebne dla mastera w UserProcess */
 			  case EVT_BLUE_GATT_PROCEDURE_COMPLETE:
-				if(BLE_Role == CLIENT) {
+
+
+
+
+
+			    if(BLE_Role == CLIENT) {
+				  evt_gatt_procedure_complete *evt = (void *)blue_evt->data;
+				  //odkrywanie glownego servisu - ?jak tu sie upewnic ze na pewno dostalismy event zwiazany z koncem odkrywania serwisu?
+				  //chyba tylko przez wartosci zmiennych globalnych, tak jak nizej
+				  if(evt->error_code == BLE_STATUS_SUCCESS){
+					  printf("Service discovery finished successfully!\r\n");
+					  //co jeszcze?
+					  services_discovered = TRUE;
+				  }
+
 				  /* Wait for gatt procedure complete event trigger related to Discovery Charac by UUID */
 				  //evt_gatt_procedure_complete *pr = (void*)blue_evt->data;
-
-				  if (start_read_tx_char_handle && !end_read_tx_char_handle)
-				  {
-					end_read_tx_char_handle = TRUE;
-				  }
-				  else if (start_read_rx_char_handle && !end_read_rx_char_handle)
-				  {
-					end_read_rx_char_handle = TRUE;
-				  }
+//				  if (start_read_tx_char_handle && !end_read_tx_char_handle)
+//				  {
+//					end_read_tx_char_handle = TRUE;
+//				  }
+//				  else if (start_read_rx_char_handle && !end_read_rx_char_handle)
+//				  {
+//					end_read_rx_char_handle = TRUE;
+//				  }
 				}
 				break;
 
