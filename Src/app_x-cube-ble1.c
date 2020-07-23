@@ -46,6 +46,7 @@
 extern bool newConfig;
 extern uint8_t sentConfigurationMsg[MSG_LEN];
 extern uint8_t whichLoopIteration;
+extern uint8_t foundDevicesCount;
 
 
 extern volatile uint8_t start_read_tx_char_handle;
@@ -268,14 +269,19 @@ static void User_Process(void)
 		discovery_started = TRUE;
 	}
 
-//  if (set_connectable)
 	if(set_connectable && discovery_finished)
 	{
-		/* Establish connection with remote device */
-		Make_Connection(); /* Stworzenie (nie nawiazanie) polaczenia (master) lub ustawienie wykrywalnosci (slave) */
-		set_connectable = FALSE;
-		user_button_init_state = BSP_PB_GetState(BUTTON_KEY);
+		/* Establish connection with first remote device */
+		if(foundDevicesCount > 0){
+			Make_Connection(); /* Stworzenie (nie nawiazanie) polaczenia (master) lub ustawienie wykrywalnosci (slave) */
+			set_connectable = FALSE;
+		}
+		else{
+			printf("No connectable devices found!\r\n");
+		}
 	}
+
+	//przebudowa Make_Connection() - to co nizej tez bedzie trzeba zmienic
 
     /* Start TX handle Characteristic dynamic discovery if not yet done */
 	/* z user_notify ustawiamy connected po nawiazaniu polaczenia = Skad jest wywolywane GAP_ConnectionComplete_CB */

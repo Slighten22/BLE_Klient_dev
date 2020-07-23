@@ -104,6 +104,7 @@ void GAP_ConnectionComplete_CB(uint8_t addr[6], uint16_t handle);
 void GAP_DisconnectionComplete_CB(void);
 void GATT_Notification_CB(uint16_t attr_handle, uint8_t attr_len,
                           uint8_t *attr_value);
+void GAP_AdvertisingReport_CB(le_advertising_info *adv_info);
 void user_notify(void * pData);
 /**
  * @}

@@ -52,6 +52,7 @@ typedef struct FoundDeviceInfo {
 } FoundDeviceInfo;
 FoundDeviceInfo foundDevices[MAX_CONNECTIONS];
 uint8_t foundDevicesCount = 0;
+uint8_t connectedDevicesCount = 0;
 
 //
 uint8_t deviceName[4]; //tmp
@@ -80,9 +81,13 @@ extern uint8_t whichServerConnecting;
  * @{
  */
 /* Private variables ---------------------------------------------------------*/
-volatile int connected = FALSE;
+//TODO tablice, skoro polaczen jest wiecej
+volatile int connected = FALSE; //TODO zmienna sprawdzana a nie jest ustawiana jej wartosc
 volatile uint8_t set_connectable = 1;
+
+//TODO zmienna nigdy nie ustawiana a wykorzystana w kilku miejscach
 volatile uint16_t connection_handle = 0;
+volatile uint16_t connectionHandles[MAX_CONNECTIONS];
 volatile uint8_t notification_enabled = FALSE;
 volatile uint8_t start_read_tx_char_handle = FALSE;
 volatile uint8_t start_read_rx_char_handle = FALSE;
@@ -171,38 +176,25 @@ fail:
 void Make_Connection(void)
 {  
     tBleStatus ret;
-    
-    printf("Client Create Connection\r\n");
-
-    //
-//    tBDAddr bdaddr1 = {0xaa, 0x00, 0x00, 0xE1, 0x80, 0x02};
-//    tBDAddr bdaddr2 = {0xcc, 0x00, 0x00, 0xE1, 0x80, 0x02};
-
     BSP_LED_On(LED2); //To indicate the start of the connection and discovery phase
-    
-    /*
-    Scan_Interval, Scan_Window, Peer_Address_Type, Peer_Address, Own_Address_Type, Conn_Interval_Min, 
-    Conn_Interval_Max, Conn_Latency, Supervision_Timeout, Conn_Len_Min, Conn_Len_Max    
-    */
-    ret = aci_gap_create_connection(
-    		SCAN_P/*0x0010*/, /* 10240 msec = Time interval from when the Controller started its last scan until it begins the subsequent scan = how long to wait between scans (for a number N, Time = N x 0.625 msec) */
-    		SCAN_L/*0x0010*/, /* 10240 msec = Scan Window: amount of time for the duration of the LE scan = how long to scan (for a number N, Time = N x 0.625 msec) */
-//			PUBLIC_ADDR, /* Peer_Address_Type */
-			foundDevices[whichServerConnecting-1].deviceAddressType,
-//			bdaddr, /* Peer_Address */
-//			((whichServerConnecting == 1) ? bdaddr1 : bdaddr2),
-			foundDevices[whichServerConnecting-1].deviceAddress,
+
+	printf("Client Create Connection with device %d\r\n", connectedDevicesCount);
+	ret = aci_gap_create_connection(
+			SCAN_P/*0x0010*/, /* 10240 msec = Scan Interval: from when the Controller started its last scan until it begins the subsequent scan = how long to wait between scans (for a number N, Time = N x 0.625 msec) */
+			SCAN_L/*0x0010*/, /* 10240 msec = Scan Window: amount of time for the duration of the LE scan = how long to scan (for a number N, Time = N x 0.625 msec) */
+			foundDevices[connectedDevicesCount].deviceAddressType, /* Peer_Address_Type */
+			foundDevices[connectedDevicesCount].deviceAddress, /* Peer_Address */
 			PUBLIC_ADDR, /* Own_Address_Type */
 			CONN_P1/*0x06C*/, /* 50 msec = Minimum Connection Period (interval) = time between two data transfer events (for a number N, Time = N x 1.25 msec) */
 			CONN_P2/*0x06C*/, /* 50 msec = Maximum Connection Period (interval) = Connection interval is the time between one radio event on a given connection and the next radio event on the same connection (for a number N, Time = N x 1.25 msec) */
 			0x0000, /* Connection latency = If non-zero, the peripheral is allowed to skip up to slave latency radio events and not listen. That saves even more power, at the expense of even slower data. number of consecutive connection events where the slave doesn't need to listen on the master(?) */
-            SUPERV_TIMEOUT/*0x0C80*/, /* 600 msec = Supervision Timeout (reset upon reception of a valid packet) max time between 2 packets before connection is considered lost (Time = N x 10 msec) */
-			/*CONN_L1*/0x000C, /* 1250 msec = Minimum Connection Length (for a number N, Time = N x 0.625 msec) */
-			/*CONN_L2*/0x000C  /* 1250 msec = Maximal Connection Length (for a number N, Time = N x 0.625 msec) */
+			SUPERV_TIMEOUT/*0x0C80*/, /* 600 msec = Supervision Timeout (reset upon reception of a valid packet) max time between 2 packets before connection is considered lost (Time = N x 10 msec) */
+			/*CONN_L1*/0x000C, /* 7.5 msec (previously 1250 msec and not working) = Minimum Connection Length (for a number N, Time = N x 0.625 msec) */
+			/*CONN_L2*/0x000C  /* 7.5 msec (previously 1250 msec and not working) = Maximal Connection Length (for a number N, Time = N x 0.625 msec) */
 	);
-    if (ret != BLE_STATUS_SUCCESS){
-      printf("Error while starting connection.\n");
-    }
+	if (ret != BLE_STATUS_SUCCESS){
+	  printf("Error while starting connection with device %d\r\n", connectedDevicesCount);
+	}
 }
 
 /**
@@ -331,14 +323,18 @@ void Attribute_Modified_CB(uint16_t handle, uint8_t data_length, uint8_t *att_da
  */
 void GAP_ConnectionComplete_CB(uint8_t addr[6], uint16_t handle)
 {  
-  connected = TRUE;
-  connection_handle = handle;
-  
+//  connected = TRUE;
+  connectionHandles[connectedDevicesCount] = handle;
+  connectedDevicesCount++;
   printf("Connected to device:");
   for(int i = 5; i > 0; i--){
     printf("%02X-", addr[i]);
   }
-  printf("%02X\n", addr[0]);
+  printf("%02X\r\n", addr[0]);
+  printf("Connection handle: %hu\r\n", handle);
+  if(connectedDevicesCount < foundDevicesCount){
+	  Make_Connection();
+  }
 }
 
 /**
@@ -384,6 +380,37 @@ void GATT_Notification_CB(uint16_t attr_handle, uint8_t attr_len, uint8_t *attr_
 }
 
 /**
+ * @brief  This function is called when the client found an advertising device to which it may connect.
+ * @param  adv_info		Structure containing information about the advertising device
+ * @retval None
+ */
+void GAP_AdvertisingReport_CB(le_advertising_info *adv_info){
+	//nazwa - zaczyna sie od bitu o ind. 6, 'test' ma 4 znaki
+	memcpy(deviceName, adv_info->data_RSSI+6, 4);
+	//sprawdzic, czy zgadza sie nazwa = czy chcemy sie polaczyc ze znalezionym urzadzeniem
+	if(strcmp((char *)deviceName, "test") == 0){
+	  //sprawdzic, czy znalezione urzadzenie to nie duplikat (czy nie mamy juz tego adresu w tablicy)
+	  bool isDeviceNew = true;
+	  tBDAddr foundDeviceAddress;
+	  memcpy(foundDeviceAddress, adv_info->bdaddr+1, BD_ADDR_SIZE);
+	  for(int i=0; i<foundDevicesCount; i++){
+		  if(strcmp((char *)foundDeviceAddress, (char *)foundDevices[foundDevicesCount].deviceAddress) == 0){
+			  isDeviceNew = false;
+		  }
+	  }
+	  if(isDeviceNew){
+		  printf("\r\nNew device found!\r\n");
+		  //dodac nowo znalezione urzadzenie do tablicy pamietanych urzadzen, zwiekszyc liczbe pamietanych urzadzen
+		  foundDevices[foundDevicesCount].deviceAddressType = adv_info->bdaddr_type;
+		  memcpy(foundDevices[foundDevicesCount].deviceAddress, adv_info->bdaddr+1, BD_ADDR_SIZE);
+		  if(foundDevicesCount+1<MAX_CONNECTIONS){
+			  foundDevicesCount++;
+		  }
+	  }
+	}
+}
+
+/**
  * @brief  This function is called whenever there is an ACI event to be processed.
  * @note   Inside this function each event must be identified and correctly
  *         parsed.
@@ -426,29 +453,7 @@ void user_notify(void * pData) /* Parsowanie otrzymanego eventu */
 				{
 				  //wyciagnac info o typie adresu, adres i nazwe urzadzenia
 				  le_advertising_info *adv_info = (void*)evt->data;
-				  //nazwa - zaczyna sie od bitu o ind. 6, 'test' ma 4 znaki
-				  memcpy(deviceName, adv_info->data_RSSI+6, 4);
-				  //sprawdzic, czy zgadza sie nazwa = czy chcemy sie polaczyc ze znalezionym urzadzeniem
-				  if(strcmp((char *)deviceName, "test") == 0){
-					  //sprawdzic, czy znalezione urzadzenie to nie duplikat (czy nie mamy juz tego adresu w tablicy)
-					  bool isDeviceNew = true;
-					  tBDAddr foundDeviceAddress;
-					  memcpy(foundDeviceAddress, adv_info->bdaddr+1, BD_ADDR_SIZE);
-					  for(int i=0; i<foundDevicesCount; i++){
-						  if(strcmp((char *)foundDeviceAddress, (char *)foundDevices[foundDevicesCount].deviceAddress) == 0){
-							  isDeviceNew = false;
-						  }
-					  }
-					  if(isDeviceNew){
-						  printf("\r\nNew device found!\r\n");
-						  //dodac nowo znalezione urzadzenie do tablicy pamietanych urzadzen, zwiekszyc liczbe pamietanych urzadzen
-						  foundDevices[foundDevicesCount].deviceAddressType = adv_info->bdaddr_type;
-						  memcpy(foundDevices[foundDevicesCount].deviceAddress, adv_info->bdaddr+1, BD_ADDR_SIZE);
-						  if(foundDevicesCount+1<MAX_CONNECTIONS){
-							  foundDevicesCount++;
-						  }
-					  }
-				  }
+				  GAP_AdvertisingReport_CB(adv_info);
 				}
 				break;
 		  }
@@ -521,7 +526,6 @@ void user_notify(void * pData) /* Parsowanie otrzymanego eventu */
 				  }
 				}
 				break;
-
 
 			  /* Koniec skanowania klienta w poszukiwaniu serverow */
 			  case EVT_BLUE_GAP_PROCEDURE_COMPLETE:
