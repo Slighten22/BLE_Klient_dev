@@ -303,16 +303,16 @@ static void User_Process(void)
       enableNotification(); /* Wlacz wymiane danych? */
     }
 
-
-    /* Klient wysyla dane konfiguracji serwerowi TODO: lepiej zeby to bylo w sample_service.c? */
-    //
-    //proba wyslania konfiguracji - dopiero gdy oba servery polaczone, do drugiego servera
+    /* Klient wysyla dane konfiguracji serwerowi */
     if(client_ready)
     {
-		if(newConfig == true){
-		  newConfig = false; //TODO: problem - wiadomosc z konfiguracja moze byc gubiona, nie sprawdzam tego! rozwiazanie - ACK?
-		  sendData(sentConfigurationMsg, sizeof(sentConfigurationMsg));
+		static uint8_t whichServerReceivesConfiguration = 0;
+    	if(newConfig == true){
+		  newConfig = false;
+		  sendData(whichServerReceivesConfiguration, sentConfigurationMsg, sizeof(sentConfigurationMsg));
+		  whichServerReceivesConfiguration++; //prymitywnie, obu serverom po jednym sensorze
 		}
+    	//TODO: wiadomosc z konfiguracja moze byc gubiona. rozwiazanie - ACK?
     	/* Wymiana danych dla konfiguracji zdalnej slave'a:
     	 * 1. master wysyla do slave'a info o konfiguracji w odpowiednim formacie (np. sekwencja rodzaj_sensora adres_pinu)
     	 * 2. slave przeparsuje sobie ta konfiguracje i odczyta info jakie ma sensory i na jakich pinach
@@ -326,23 +326,6 @@ static void User_Process(void)
     {
     	client_ready = true;
     }
-//
-//    //
-//    if(client_ready && whichServerConnecting == 1){
-//		set_connectable = true;
-//		//connected = false;
-//		start_read_tx_char_handle = false;
-//		start_read_rx_char_handle = false;
-//		end_read_tx_char_handle = false;
-//		end_read_rx_char_handle = false;
-//		notification_enabled = false;
-//		whichServerConnecting++;
-//
-//
-//		//!
-//		client_ready = false;
-//
-//    }
 }
 
 /**

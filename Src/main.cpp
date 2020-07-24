@@ -335,7 +335,6 @@ void StartDefaultTask(void const * argument)
 	  //
 	  //osDelay(DELAY_TIME/30); //wlaczenie delaya na 100 milisek. powoduje wypisywanie smieci w terminalu - czemu?
 
-
   }
   /* USER CODE END 5 */ 
 }
@@ -355,10 +354,10 @@ void AskForDataTaskThread(void const * argument)
 		  //prymitywne wyslanie danych konfiguracji (docelowo bedzie do tego interfejs)
 		  //!zwrocic uwage na delay glownego taska i wartosc countera!
 		  if(counter == /*0*/UINT16_MAX/16){
-			  prepareNewConfig(DHT22, 4, (uint8_t *)"Pokoj1");
+			  prepareNewConfig(DHT22, 4, (uint8_t *)"Pokoj");
 		  }
 		  if(counter == /*4*/UINT16_MAX/8){
-			  prepareNewConfig(DHT22, 5, (uint8_t *)"Kuchnia1");
+			  prepareNewConfig(DHT22, 5, (uint8_t *)"Kuchnia");
 		  }
 		  //uwazac zeby tylko raz wysylac pozadana konfiguracje! a nie w petli co przepelnienie wartosci countera!
 		  if(counter <= UINT16_MAX/8){

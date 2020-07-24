@@ -251,23 +251,18 @@ void receiveData(uint8_t* data_buffer, uint8_t Nb_bytes)
 /**
  * @brief  This function is used to send data related to the sample service
  *         (to be sent over the air to the remote board).
+ * @param  server_index : index of the server which will receive data
  * @param  data_buffer : pointer to data to be sent
  * @param  Nb_bytes : number of bytes to send
  * @retval None
  */
-void sendData(uint8_t* data_buffer, uint8_t Nb_bytes)
+//void sendData(uint8_t* data_buffer, uint8_t Nb_bytes)
+void sendData(uint8_t server_index, uint8_t* data_buffer, uint8_t Nb_bytes)
 {
-  if(BLE_Role == SERVER) {    
-    aci_gatt_update_char_value(sampleServHandle,TXCharHandle, 0, Nb_bytes, data_buffer);    
-  }
-  else { /* Klient do serwera */
-
-
-	  //TODO do ktorego servera!
-    aci_gatt_write_without_response(connectionHandles[connectedDevicesCount-1], rxHandles[connectedDevicesCount-1]+1, Nb_bytes, data_buffer); /* Max 20 bajtow na jedno wywolanie funkcji, serwer nie potwierdza otrzymania pakietu */
+	/* Klient do serwera */
+    aci_gatt_write_without_response(connectionHandles[server_index], rxHandles[server_index]+1, Nb_bytes, data_buffer); /* Max 20 bajtow na jedno wywolanie funkcji, serwer nie potwierdza otrzymania pakietu */
 	//aci_gatt_write_charac_value(connection_handle, rx_handle+1, Nb_bytes, data_buffer); /* The client provides a handle and the contents of the value (up to ATT_MTU-3 bytes, because the handle and the ATT operation code are included in the packet with the data) and the server will !acknowledge the write operation with a response! */
 	//aci_gatt_write_long_charac_val(connection_handle, rx_handle+1, 0, Nb_bytes, data_buffer); /* This permits a client to write more than ATT_MTU-3 bytes of data into a server’s characteristic value or descriptor. It works by queueing several prepare write operations, each of which includes an offset and the data itself, and then finally writing them all atomically with an execute write operation. */
-  }
 }
 
 /**
@@ -521,7 +516,7 @@ void user_notify(void * pData) /* Parsowanie otrzymanego eventu */
 				  evt_gatt_procedure_complete *evt = (void *)blue_evt->data;
 				  //chyba tylko przez wartosci zmiennych globalnych da sie ustalic co sie stalo, tak jak nizej
 				  if(evt->error_code == BLE_STATUS_SUCCESS){
-					  printf("EVT_BLUE_GATT_PROCEDURE_COMPLETE\r\n"); //jaka dokladnie procedura? trzeba sprawdzac po zmiennych glob.!
+//					  printf("EVT_BLUE_GATT_PROCEDURE_COMPLETE\r\n"); //jaka dokladnie procedura? trzeba sprawdzac po zmiennych glob.!
 					  if (start_read_tx_char_handle && !all_tx_char_handles_read)
 					  {
 						txHandlesDiscoveredCount++;
