@@ -80,15 +80,16 @@ static volatile uint8_t user_button_pressed = 0;
 
 extern volatile uint8_t set_connectable;
 extern volatile uint8_t all_servers_connected;
-extern volatile uint8_t notification_enabled;
 extern volatile uint8_t client_ready;
 extern volatile uint8_t discovery_started;
 extern volatile uint8_t discovery_finished;
+extern volatile uint8_t start_notifications_enable;
+extern volatile uint8_t all_notifications_enabled;
 extern volatile uint16_t connectionHandles[];
 extern volatile bool services_discovered;
 
-extern volatile uint8_t end_read_tx_char_handle;
-extern volatile uint8_t end_read_rx_char_handle;
+extern volatile uint8_t all_tx_char_handles_read;
+extern volatile uint8_t all_rx_char_handles_read;
 
 /* USER CODE BEGIN PV */
 
@@ -299,45 +300,43 @@ static void User_Process(void)
 	//TODO: sprobowac tego co nizej na stalych i tych samych dla kazdego servera UUID
     /* Start TX handle Characteristic dynamic discovery if not yet done */
 	/* z user_notify ustawiamy all_servers_connected po nawiazaniu polaczenia = Skad jest wywolywane GAP_ConnectionComplete_CB */
-    if (all_servers_connected && !end_read_tx_char_handle){
+    if (all_servers_connected && !start_read_tx_char_handle){
       startReadTXCharHandle(); //trzeba wiedziec, od ktorego polaczenia!
     }
-//    /* Start RX handle Characteristic dynamic discovery if not yet done */
-//    else if (all_servers_connected && !end_read_rx_char_handle){
-//      startReadRXCharHandle();
-//    }
-//
-//    if (/*connected &&*/ end_read_tx_char_handle && end_read_rx_char_handle && !notification_enabled)
-//    {
-//      BSP_LED_Off(LED2); /* end of the connection and chars discovery phase */
-//      enableNotification(); /* Wlacz wymiane danych? */
-//    }
-//
-//
-//    /* Klient wysyla dane serwerowi TODO: lepiej zeby to bylo w sample_service.c? */
-//    //
-//    //proba wyslania konfiguracji - dopiero gdy oba servery polaczone, do drugiego servera
-////    if(client_ready)
-//    if(client_ready && all_servers_connected && end_read_tx_char_handle && end_read_rx_char_handle
-//      && notification_enabled && whichServerConnecting == 2)
-//    {
-//		if(newConfig == true){
-//		  newConfig = false; //TODO: problem - wiadomosc z konfiguracja moze byc gubiona, nie sprawdzam tego! rozwiazanie - ACK?
-//		  sendData(sentConfigurationMsg, sizeof(sentConfigurationMsg));
-//		}
-//    	/* Wymiana danych dla konfiguracji zdalnej slave'a:
-//    	 * 1. master wysyla do slave'a info o konfiguracji w odpowiednim formacie (np. sekwencja rodzaj_sensora adres_pinu)
-//    	 * 2. slave przeparsuje sobie ta konfiguracje i odczyta info jakie ma sensory i na jakich pinach
-//    	 * 3. slave wywola funckje do odczytania z tych sensorow ktore dostal w konfiguracji
-//    	 * 4. funkcja od odczytywania z wielu sensorow da znac (?) gdy bedzie miec juz wszystkie dane
-//    	 * 5. slave wysle odpowiednia liczbe bajtow danych (obliczona wczesniej na podst. konfiguracji) masterowi
-//    	 * */
-//    }
-//
-//    if (all_servers_connected && end_read_tx_char_handle && end_read_rx_char_handle && notification_enabled && !client_ready)
-//    {
-//    	client_ready = true;
-//    }
+    /* Start RX handle Characteristic dynamic discovery if not yet done */
+    if (all_servers_connected && all_tx_char_handles_read && !start_read_rx_char_handle){
+      startReadRXCharHandle();
+    }
+
+    if (all_servers_connected && all_tx_char_handles_read && all_rx_char_handles_read && !start_notifications_enable)
+    {
+      BSP_LED_Off(LED2); /* end of the connection and chars discovery phase */
+      enableNotification(); /* Wlacz wymiane danych? */
+    }
+
+
+    /* Klient wysyla dane serwerowi TODO: lepiej zeby to bylo w sample_service.c? */
+    //
+    //proba wyslania konfiguracji - dopiero gdy oba servery polaczone, do drugiego servera
+    if(client_ready)
+    {
+		if(newConfig == true){
+		  newConfig = false; //TODO: problem - wiadomosc z konfiguracja moze byc gubiona, nie sprawdzam tego! rozwiazanie - ACK?
+		  sendData(sentConfigurationMsg, sizeof(sentConfigurationMsg));
+		}
+    	/* Wymiana danych dla konfiguracji zdalnej slave'a:
+    	 * 1. master wysyla do slave'a info o konfiguracji w odpowiednim formacie (np. sekwencja rodzaj_sensora adres_pinu)
+    	 * 2. slave przeparsuje sobie ta konfiguracje i odczyta info jakie ma sensory i na jakich pinach
+    	 * 3. slave wywola funckje do odczytania z tych sensorow ktore dostal w konfiguracji
+    	 * 4. funkcja od odczytywania z wielu sensorow da znac (?) gdy bedzie miec juz wszystkie dane
+    	 * 5. slave wysle odpowiednia liczbe bajtow danych (obliczona wczesniej na podst. konfiguracji) masterowi
+    	 * */
+    }
+
+    if (all_servers_connected && all_tx_char_handles_read && all_rx_char_handles_read && all_notifications_enabled && !client_ready)
+    {
+    	client_ready = true;
+    }
 //
 //    //
 //    if(client_ready && whichServerConnecting == 1){

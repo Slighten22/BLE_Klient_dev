@@ -63,6 +63,7 @@
  */
 /* Private variables ---------------------------------------------------------*/
 volatile uint16_t connectionHandles[MAX_CONNECTIONS];
+volatile uint8_t connectedDevicesCount = 0;
 volatile uint8_t set_connectable = 1;
 volatile uint8_t client_ready = FALSE;
 volatile uint8_t discovery_started = FALSE;
@@ -70,19 +71,21 @@ volatile uint8_t discovery_finished = FALSE;
 volatile uint8_t all_servers_connected = FALSE;
 volatile bool services_discovered = FALSE;
 
-
 evt_att_read_by_group_resp *resp; //TODO potrzebna jako globalna tylko do debugowania
 uint8_t tmp[13]; //jak wyzej
-//TODO tablice, skoro polaczen jest wiecej
-//TODO zmienna nigdy nie ustawiana a wykorzystana w kilku miejscach
-volatile uint16_t connection_handle = 0;
-volatile uint8_t notification_enabled = FALSE;
-volatile uint8_t start_read_tx_char_handle = FALSE;
-volatile uint8_t start_read_rx_char_handle = FALSE;
-volatile uint8_t end_read_tx_char_handle = FALSE;
-volatile uint8_t end_read_rx_char_handle = FALSE;
-uint16_t tx_handle; /* Klient zna handle do charakterystyk servera */
-uint16_t rx_handle;
+volatile uint8_t start_notifications_enable = FALSE;
+volatile uint8_t all_notifications_enabled = FALSE;
+volatile uint8_t start_read_tx_char_handle = FALSE;//?
+volatile uint8_t start_read_rx_char_handle = FALSE;//?
+volatile uint8_t all_tx_char_handles_read = FALSE;
+volatile uint8_t all_rx_char_handles_read = FALSE;
+//uint16_t tx_handle; /* Klient zna handle do charakterystyk servera */
+uint16_t txHandles[MAX_CONNECTIONS];
+uint8_t txHandlesDiscoveredCount = 0;
+//uint16_t rx_handle;
+uint16_t rxHandles[MAX_CONNECTIONS];
+uint8_t rxHandlesDiscoveredCount = 0;
+uint8_t notifications_enabled_count = 0;
 uint16_t sampleServHandle, TXCharHandle, RXCharHandle; /* Server zna handle do swojego serwisu i swoich charakterystyk */
 
 extern uint8_t bnrg_expansion_board;
@@ -100,7 +103,6 @@ typedef struct FoundDeviceInfo {
 } FoundDeviceInfo;
 FoundDeviceInfo foundDevices[MAX_CONNECTIONS];
 uint8_t foundDevicesCount = 0;
-uint8_t connectedDevicesCount = 0;
 
 //
 //uint8_t deviceName[4]; //lokalna wewnatrz GAP_AdvertisingReport_CB()
@@ -204,7 +206,7 @@ void Make_Connection(void)
  */
 void startReadTXCharHandle(void)
 {
-  if (!start_read_tx_char_handle)
+  if (!all_tx_char_handles_read)
   {    
     PRINTF("Start reading TX Char Handle\n");
     
@@ -215,7 +217,7 @@ void startReadTXCharHandle(void)
 //    	/* OK */
 //    else if(whichServerConnecting == 2)
 //    	charUuid128_TX[12] = 0xe4;
-    aci_gatt_disc_charac_by_uuid(/*connection_handle*/connectionHandles[0], 0x0001, 0xFFFF, UUID_TYPE_128, charUuid128_TX);
+    aci_gatt_disc_charac_by_uuid(/*connection_handle*/connectionHandles[txHandlesDiscoveredCount], 0x0001, 0xFFFF, UUID_TYPE_128, charUuid128_TX);
     start_read_tx_char_handle = TRUE;
   }
 }
@@ -227,18 +229,17 @@ void startReadTXCharHandle(void)
  */
 void startReadRXCharHandle(void)
 {  
-  if (!start_read_rx_char_handle)
+  if (!all_rx_char_handles_read)
   {
     PRINTF("Start reading RX Char Handle\n");
     
-    //TODO inne charakterystyki TX, RX (roznica na 3. bajcie)
-    //
+    //TEST: te same ch-tyki TX&RX dla obu serverow
     /*const*/ uint8_t charUuid128_RX[16] = {0x66,0x9a,0x0c,0x20,0x00,0x08,0x96,0x9e,0xe2,0x11,0x9e,0xb1,0xe2/*0xe5*/,0xf2,0x73,0xd9};
-    if(whichServerConnecting == 1) {}
-    	/* OK */
-    else if(whichServerConnecting == 2)
-    	charUuid128_RX[12] = 0xe5;
-    aci_gatt_disc_charac_by_uuid(connection_handle, 0x0001, 0xFFFF, UUID_TYPE_128, charUuid128_RX);
+//    if(whichServerConnecting == 1) {}
+//    	/* OK */
+//    else if(whichServerConnecting == 2)
+//    	charUuid128_RX[12] = 0xe5;
+    aci_gatt_disc_charac_by_uuid(connectionHandles[rxHandlesDiscoveredCount], 0x0001, 0xFFFF, UUID_TYPE_128, charUuid128_RX);
     start_read_rx_char_handle = TRUE;
   }
 }
@@ -274,7 +275,10 @@ void sendData(uint8_t* data_buffer, uint8_t Nb_bytes)
     aci_gatt_update_char_value(sampleServHandle,TXCharHandle, 0, Nb_bytes, data_buffer);    
   }
   else { /* Klient do serwera */
-    aci_gatt_write_without_response(connection_handle, rx_handle+1, Nb_bytes, data_buffer); /* Max 20 bajtow na jedno wywolanie funkcji, serwer nie potwierdza otrzymania pakietu */
+
+
+	  //TODO do ktorego servera!
+    aci_gatt_write_without_response(connectionHandles[connectedDevicesCount-1], rxHandles[connectedDevicesCount-1]+1, Nb_bytes, data_buffer); /* Max 20 bajtow na jedno wywolanie funkcji, serwer nie potwierdza otrzymania pakietu */
 	//aci_gatt_write_charac_value(connection_handle, rx_handle+1, Nb_bytes, data_buffer); /* The client provides a handle and the contents of the value (up to ATT_MTU-3 bytes, because the handle and the ATT operation code are included in the packet with the data) and the server will !acknowledge the write operation with a response! */
 	//aci_gatt_write_long_charac_val(connection_handle, rx_handle+1, 0, Nb_bytes, data_buffer); /* This permits a client to write more than ATT_MTU-3 bytes of data into a server’s characteristic value or descriptor. It works by queueing several prepare write operations, each of which includes an offset and the data itself, and then finally writing them all atomically with an execute write operation. */
   }
@@ -291,11 +295,16 @@ void enableNotification(void)
   
   uint32_t tickstart = HAL_GetTick();
   
-  while(aci_gatt_write_charac_descriptor(connection_handle, tx_handle+2, 2, client_char_conf_data)==BLE_STATUS_NOT_ALLOWED){ /* ? */
-    /* Radio is busy */
-    if ((HAL_GetTick() - tickstart) > (10*HCI_DEFAULT_TIMEOUT_MS)) break;
+  while(notifications_enabled_count < connectedDevicesCount){
+	  while(aci_gatt_write_charac_descriptor(connectionHandles[notifications_enabled_count], txHandles[notifications_enabled_count]+2, 2, client_char_conf_data)==BLE_STATUS_NOT_ALLOWED){ /* ? */
+		/* Radio is busy */
+		if ((HAL_GetTick() - tickstart) > (10*HCI_DEFAULT_TIMEOUT_MS)) break;
+	  }
+	  notifications_enabled_count++;
   }
-  notification_enabled = TRUE;
+  start_notifications_enable = TRUE;
+  all_notifications_enabled = TRUE; //?
+  printf("All notifications enabled!\r\n");
 }
 
 /**
@@ -311,7 +320,8 @@ void Attribute_Modified_CB(uint16_t handle, uint8_t data_length, uint8_t *att_da
     receiveData(att_data, data_length);
   } else if (handle == TXCharHandle + 2) {        
     if(att_data[0] == 0x01)
-      notification_enabled = TRUE;
+    	start_notifications_enable = TRUE; //?
+//      notification_enabled = TRUE;
   }
 }
 
@@ -352,11 +362,11 @@ void GAP_DisconnectionComplete_CB(void)
   printf("Disconnected\n");
   /* Make the device connectable again. */
   set_connectable = TRUE;
-  notification_enabled = FALSE;
+  start_notifications_enable = FALSE;
   start_read_tx_char_handle = FALSE;
   start_read_rx_char_handle = FALSE;
-  end_read_tx_char_handle = FALSE;
-  end_read_rx_char_handle = FALSE;
+  all_tx_char_handles_read = FALSE;
+  all_rx_char_handles_read = FALSE;
 }
 
 /**
@@ -369,7 +379,7 @@ void GAP_DisconnectionComplete_CB(void)
 void GATT_Notification_CB(uint16_t attr_handle, uint8_t attr_len, uint8_t *attr_value)
 {
 	/* !Odebrane dane od servera! */
-    if (attr_handle == tx_handle+1 && attr_len != 0 && *attr_value != '\0') {
+    if (attr_handle == txHandles[txHandlesDiscoveredCount-1]+1 && attr_len != 0 && *attr_value != '\0') { //TODO check txHandles[txHandlesDiscoveredCount]
     	xSemaphoreTake(newDataMutexHandle, DELAY_TIME);
     	memset((char *)dataBLE[newData], '\0', MSG_LEN);
     	for(int i=0; i<=attr_len && i<=MSG_LEN; i++){
@@ -502,15 +512,31 @@ void user_notify(void * pData) /* Parsowanie otrzymanego eventu */
 
 				  evt_gatt_disc_read_char_by_uuid_resp *resp = (void*)blue_evt->data;
 
-				  if (start_read_tx_char_handle && !end_read_tx_char_handle)
+				  if (start_read_tx_char_handle && !all_tx_char_handles_read)
 				  {
-					tx_handle = resp->attr_handle;
-					printf("TX Char Handle %04X\r\n", tx_handle);
+					txHandles[txHandlesDiscoveredCount] = resp->attr_handle;
+					printf("TX Char Handle %04X\r\n", txHandles[txHandlesDiscoveredCount]);
+					txHandlesDiscoveredCount++;
+					if(txHandlesDiscoveredCount == connectedDevicesCount){
+						all_tx_char_handles_read = TRUE;
+						printf("All TX handles read!\r\n");
+					}
+					else if(txHandlesDiscoveredCount < connectedDevicesCount){
+						startReadTXCharHandle();
+					}
 				  }
-				  else if (start_read_rx_char_handle && !end_read_rx_char_handle)
+				  else if (start_read_rx_char_handle && !all_rx_char_handles_read)
 				  {
-					rx_handle = resp->attr_handle;
-					printf("RX Char Handle %04X\r\n", rx_handle);
+					rxHandles[rxHandlesDiscoveredCount] = resp->attr_handle;
+					printf("RX Char Handle %04X\r\n", rxHandles[rxHandlesDiscoveredCount]);
+					rxHandlesDiscoveredCount++;
+					if(rxHandlesDiscoveredCount == connectedDevicesCount){
+						all_rx_char_handles_read = TRUE;
+						printf("All RX handles read!\r\n");
+					}
+					else if(rxHandlesDiscoveredCount < connectedDevicesCount){
+						startReadRXCharHandle();
+					}
 				  }
 				}
 			  }
@@ -540,7 +566,7 @@ void user_notify(void * pData) /* Parsowanie otrzymanego eventu */
 				  //odkrywanie glownego servisu - ?jak tu sie upewnic ze na pewno dostalismy event zwiazany z koncem odkrywania serwisu?
 				  //chyba tylko przez wartosci zmiennych globalnych, tak jak nizej
 				  if(evt->error_code == BLE_STATUS_SUCCESS){
-					  printf("Service discovery finished successfully!\r\n");
+					  printf("EVT_BLUE_GATT_PROCEDURE_COMPLETE\r\n"); // Service discovery finished successfully!
 					  //co jeszcze?
 					  services_discovered = TRUE;
 				  }
