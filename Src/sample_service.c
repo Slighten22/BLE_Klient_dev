@@ -68,7 +68,7 @@ volatile uint8_t set_connectable = 1;
 volatile uint8_t client_ready = FALSE;
 volatile uint8_t discovery_started = FALSE;
 volatile uint8_t discovery_finished = FALSE;
-volatile uint8_t all_servers_connected = FALSE;
+volatile bool all_servers_connected = FALSE;
 volatile bool services_discovered = FALSE;
 
 evt_att_read_by_group_resp *resp; //TODO potrzebna jako globalna tylko do debugowania
@@ -79,10 +79,9 @@ volatile uint8_t start_read_tx_char_handle = FALSE;//?
 volatile uint8_t start_read_rx_char_handle = FALSE;//?
 volatile uint8_t all_tx_char_handles_read = FALSE;
 volatile uint8_t all_rx_char_handles_read = FALSE;
-//uint16_t tx_handle; /* Klient zna handle do charakterystyk servera */
+/* Klient zna handle do charakterystyk serverow */
 uint16_t txHandles[MAX_CONNECTIONS];
 uint8_t txHandlesDiscoveredCount = 0;
-//uint16_t rx_handle;
 uint16_t rxHandles[MAX_CONNECTIONS];
 uint8_t rxHandlesDiscoveredCount = 0;
 uint8_t notifications_enabled_count = 0;
@@ -180,7 +179,7 @@ void Make_Connection(void)
     tBleStatus ret;
     BSP_LED_On(LED2); //To indicate the start of the connection and discovery phase
 
-	printf("Client Create Connection with device %d\r\n", connectedDevicesCount);
+	printf("Client Create Connection with device %d\r\n", connectedDevicesCount+1);
 	ret = aci_gap_create_connection(
 			SCAN_P/*0x0010*/, /* 10240 msec = Scan Interval: from when the Controller started its last scan until it begins the subsequent scan = how long to wait between scans (for a number N, Time = N x 0.625 msec) */
 			SCAN_L/*0x0010*/, /* 10240 msec = Scan Window: amount of time for the duration of the LE scan = how long to scan (for a number N, Time = N x 0.625 msec) */
@@ -209,16 +208,9 @@ void startReadTXCharHandle(void)
   if (!all_tx_char_handles_read)
   {    
     PRINTF("Start reading TX Char Handle\n");
-    
-    //
-	/*const*/ uint8_t charUuid128_TX[16] = {0x66,0x9a,0x0c,0x20,0x00,0x08,0x96,0x9e,0xe2,0x11,0x9e,0xb1,0xe1/*0xe4*/,0xf2,0x73,0xd9};
-	//TEST - czy zadziala dla 2 roznych polaczen podanie 2 razy tego samego UUID
-//	if(whichServerConnecting == 1){}
-//    	/* OK */
-//    else if(whichServerConnecting == 2)
-//    	charUuid128_TX[12] = 0xe4;
-    aci_gatt_disc_charac_by_uuid(/*connection_handle*/connectionHandles[txHandlesDiscoveredCount], 0x0001, 0xFFFF, UUID_TYPE_128, charUuid128_TX);
     start_read_tx_char_handle = TRUE;
+	const uint8_t charUuid128_TX[16] = {0x66,0x9a,0x0c,0x20,0x00,0x08,0x96,0x9e,0xe2,0x11,0x9e,0xb1,0xe1,0xf2,0x73,0xd9};
+    aci_gatt_disc_charac_by_uuid(connectionHandles[txHandlesDiscoveredCount], 0x0001, 0xFFFF, UUID_TYPE_128, charUuid128_TX);
   }
 }
 
@@ -232,15 +224,9 @@ void startReadRXCharHandle(void)
   if (!all_rx_char_handles_read)
   {
     PRINTF("Start reading RX Char Handle\n");
-    
-    //TEST: te same ch-tyki TX&RX dla obu serverow
-    /*const*/ uint8_t charUuid128_RX[16] = {0x66,0x9a,0x0c,0x20,0x00,0x08,0x96,0x9e,0xe2,0x11,0x9e,0xb1,0xe2/*0xe5*/,0xf2,0x73,0xd9};
-//    if(whichServerConnecting == 1) {}
-//    	/* OK */
-//    else if(whichServerConnecting == 2)
-//    	charUuid128_RX[12] = 0xe5;
-    aci_gatt_disc_charac_by_uuid(connectionHandles[rxHandlesDiscoveredCount], 0x0001, 0xFFFF, UUID_TYPE_128, charUuid128_RX);
     start_read_rx_char_handle = TRUE;
+    const uint8_t charUuid128_RX[16] = {0x66,0x9a,0x0c,0x20,0x00,0x08,0x96,0x9e,0xe2,0x11,0x9e,0xb1,0xe2,0xf2,0x73,0xd9};
+    aci_gatt_disc_charac_by_uuid(connectionHandles[rxHandlesDiscoveredCount], 0x0001, 0xFFFF, UUID_TYPE_128, charUuid128_RX);
   }
 }
 
@@ -336,7 +322,7 @@ void GAP_ConnectionComplete_CB(uint8_t addr[6], uint16_t handle)
 //  connected = TRUE;
   connectionHandles[connectedDevicesCount] = handle;
   connectedDevicesCount++;
-  printf("Connected to device:");
+  printf("Connected to device: ");
   for(int i = 5; i > 0; i--){
     printf("%02X-", addr[i]);
   }
@@ -347,6 +333,7 @@ void GAP_ConnectionComplete_CB(uint8_t addr[6], uint16_t handle)
   }
   else if(connectedDevicesCount == foundDevicesCount){
 	  all_servers_connected = TRUE;
+	  printf("All found devices connected\r\n");
   }
 }
 
@@ -504,7 +491,7 @@ void user_notify(void * pData) /* Parsowanie otrzymanego eventu */
 				}
 				break;
 
-			  /* Odczytwanie charakterystyk slave'a czyli poznawanie TX i RX handles */
+			  /* Odczytwanie charakterystyk slave'a czyli zapamietywanie TX i RX handles */
 			  case EVT_BLUE_GATT_DISC_READ_CHAR_BY_UUID_RESP:
 			  {
 				if(BLE_Role == CLIENT) {
@@ -516,71 +503,48 @@ void user_notify(void * pData) /* Parsowanie otrzymanego eventu */
 				  {
 					txHandles[txHandlesDiscoveredCount] = resp->attr_handle;
 					printf("TX Char Handle %04X\r\n", txHandles[txHandlesDiscoveredCount]);
-					txHandlesDiscoveredCount++;
-					if(txHandlesDiscoveredCount == connectedDevicesCount){
-						all_tx_char_handles_read = TRUE;
-						printf("All TX handles read!\r\n");
-					}
-					else if(txHandlesDiscoveredCount < connectedDevicesCount){
-						startReadTXCharHandle();
-					}
+					//dalej (sprawdzenie czy to juz wszystkie ch-tyki TX) juz w EVT_BLUE_GATT_PROCEDURE_COMPLETE
 				  }
-				  else if (start_read_rx_char_handle && !all_rx_char_handles_read)
+				  if (start_read_rx_char_handle && !all_rx_char_handles_read)
 				  {
 					rxHandles[rxHandlesDiscoveredCount] = resp->attr_handle;
 					printf("RX Char Handle %04X\r\n", rxHandles[rxHandlesDiscoveredCount]);
-					rxHandlesDiscoveredCount++;
-					if(rxHandlesDiscoveredCount == connectedDevicesCount){
-						all_rx_char_handles_read = TRUE;
-						printf("All RX handles read!\r\n");
-					}
-					else if(rxHandlesDiscoveredCount < connectedDevicesCount){
-						startReadRXCharHandle();
-					}
+					//dalej (sprawdzenie czy to juz wszystkie ch-tyki RX) juz w EVT_BLUE_GATT_PROCEDURE_COMPLETE
 				  }
 				}
 			  }
 				break;
 
-
-			  //odkrywanie glownego serwisu
-			  //na razie nie wiem, czy ten sposob do czegos prowadzi -> na razie rezygnuje z niego
-			  case EVT_BLUE_ATT_READ_BY_GROUP_TYPE_RESP:
-			  {
-				  /*evt_att_read_by_group_resp *resp */resp = (void *)blue_evt->data;
-				  memcpy(tmp, resp->attribute_data_list, 13); //adres serwisu??
-				  printf("Discovered main service of the device with connection handle: %hu\r\n", resp->conn_handle);
-			  }
-			  break;
-
-
 			  /* Potrzebne dla mastera w UserProcess */
 			  case EVT_BLUE_GATT_PROCEDURE_COMPLETE:
-
-
-
-
-
 			    if(BLE_Role == CLIENT) {
 				  evt_gatt_procedure_complete *evt = (void *)blue_evt->data;
-				  //odkrywanie glownego servisu - ?jak tu sie upewnic ze na pewno dostalismy event zwiazany z koncem odkrywania serwisu?
-				  //chyba tylko przez wartosci zmiennych globalnych, tak jak nizej
+				  //chyba tylko przez wartosci zmiennych globalnych da sie ustalic co sie stalo, tak jak nizej
 				  if(evt->error_code == BLE_STATUS_SUCCESS){
-					  printf("EVT_BLUE_GATT_PROCEDURE_COMPLETE\r\n"); // Service discovery finished successfully!
-					  //co jeszcze?
-					  services_discovered = TRUE;
+					  printf("EVT_BLUE_GATT_PROCEDURE_COMPLETE\r\n"); //jaka dokladnie procedura? trzeba sprawdzac po zmiennych glob.!
+					  if (start_read_tx_char_handle && !all_tx_char_handles_read)
+					  {
+						txHandlesDiscoveredCount++;
+						if(txHandlesDiscoveredCount == connectedDevicesCount){
+							all_tx_char_handles_read = TRUE;
+							printf("All TX handles read!\r\n");
+						}
+						else if(txHandlesDiscoveredCount < connectedDevicesCount){
+							startReadTXCharHandle();
+						}
+					  }
+					  if (start_read_rx_char_handle && !all_rx_char_handles_read)
+					  {
+						rxHandlesDiscoveredCount++;
+						if(rxHandlesDiscoveredCount == connectedDevicesCount){
+							all_rx_char_handles_read = TRUE;
+							printf("All RX handles read!\r\n");
+						}
+						else if(rxHandlesDiscoveredCount < connectedDevicesCount){
+							startReadRXCharHandle();
+						}
+					  }
 				  }
-
-				  /* Wait for gatt procedure complete event trigger related to Discovery Charac by UUID */
-				  //evt_gatt_procedure_complete *pr = (void*)blue_evt->data;
-//				  if (start_read_tx_char_handle && !end_read_tx_char_handle)
-//				  {
-//					end_read_tx_char_handle = TRUE;
-//				  }
-//				  else if (start_read_rx_char_handle && !end_read_rx_char_handle)
-//				  {
-//					end_read_rx_char_handle = TRUE;
-//				  }
 				}
 				break;
 

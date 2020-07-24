@@ -147,7 +147,8 @@ void MX_BlueNRG_MS_Init(void)
   /* get the BlueNRG HW and FW versions */
   getBlueNRGVersion(&hwVersion, &fwVersion);
 
-  printf("HWver %d, FWver %d\n", hwVersion, fwVersion);
+  printf("CLIENT: Started initializing the BLE Stack\r\n");
+  printf("HWver %d, FWver %d\r\n", hwVersion, fwVersion);
 
   if (hwVersion > 0x30) { /* Yes, X-NUCLEO-IDB05A1 expansion board is used */
     bnrg_expansion_board = IDB05A1;
@@ -212,7 +213,7 @@ void MX_BlueNRG_MS_Init(void)
 //    printf("BLE Stack Initialized.\n");
 //  }
   
-  printf("CLIENT: BLE Stack Initialized\n");
+  printf("CLIENT: BLE Stack Initialized\r\n");
 
   /* USER CODE BEGIN BlueNRG_MS_Init_PostTreatment */
   
@@ -269,7 +270,10 @@ static void User_Process(void)
 		if (ret != BLE_STATUS_SUCCESS) {
 			printf("Error starting device discovery process!\r\n");
 		}
-		discovery_started = TRUE;
+		else{
+			discovery_started = TRUE;
+			printf("Device discovery process started\r\n");
+		}
 	}
 
 	if(set_connectable && discovery_finished)
@@ -284,30 +288,15 @@ static void User_Process(void)
 		set_connectable = FALSE;
 	}
 
-	//na razie nie wiem, czy ten sposob do czegos prowadzi -> na razie rezygnuje z niego
-	//tBleStatus aci_gatt_disc_all_prim_services(uint16_t conn_handle)
-	//This command will start the GATT client procedure to discover all primary services on the server.
-//	if(all_servers_connected && !services_discovered){
-//		tBleStatus ret = aci_gatt_disc_all_prim_services(connectionHandles[0]);
-//		if (ret != BLE_STATUS_SUCCESS) {
-//			printf("Error starting service discovery process!\r\n");
-//		}
-//		//NIE tutaj
-//		services_discovered = TRUE;
-//	}
-
-
-	//TODO: sprobowac tego co nizej na stalych i tych samych dla kazdego servera UUID
     /* Start TX handle Characteristic dynamic discovery if not yet done */
-	/* z user_notify ustawiamy all_servers_connected po nawiazaniu polaczenia = Skad jest wywolywane GAP_ConnectionComplete_CB */
     if (all_servers_connected && !start_read_tx_char_handle){
-      startReadTXCharHandle(); //trzeba wiedziec, od ktorego polaczenia!
+      startReadTXCharHandle();
     }
     /* Start RX handle Characteristic dynamic discovery if not yet done */
     if (all_servers_connected && all_tx_char_handles_read && !start_read_rx_char_handle){
       startReadRXCharHandle();
     }
-
+    /* Enable notifications to start data exchange */
     if (all_servers_connected && all_tx_char_handles_read && all_rx_char_handles_read && !start_notifications_enable)
     {
       BSP_LED_Off(LED2); /* end of the connection and chars discovery phase */
@@ -315,7 +304,7 @@ static void User_Process(void)
     }
 
 
-    /* Klient wysyla dane serwerowi TODO: lepiej zeby to bylo w sample_service.c? */
+    /* Klient wysyla dane konfiguracji serwerowi TODO: lepiej zeby to bylo w sample_service.c? */
     //
     //proba wyslania konfiguracji - dopiero gdy oba servery polaczone, do drugiego servera
     if(client_ready)
