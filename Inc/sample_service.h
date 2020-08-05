@@ -43,16 +43,62 @@
  extern "C" {
 #endif 
 
+ /* Private defines */
+ #define MAX_CONNECTIONS 8 //Mode 3: master/slave, max. 8 connections
+
 /* Includes ------------------------------------------------------------------*/
 #include <stdio.h>
 
+#include "cmsis_os.h"
+#include "app_x-cube-ble1.h"
 #include "bluenrg_gap.h"
 #include "bluenrg_aci_const.h"
 #include "hci.h"
 #include "hci_le.h"
 #include "sm.h"
-
 #include "role_type.h"
+
+extern volatile bool set_connectable;
+extern volatile bool client_ready;
+extern volatile bool discovery_started;
+extern volatile bool discovery_finished;
+extern volatile bool start_notifications_enable;
+extern volatile bool all_notifications_enabled;
+extern volatile bool start_read_tx_char_handle;//?
+extern volatile bool start_read_rx_char_handle;//?
+extern volatile bool all_tx_char_handles_read;
+extern volatile bool all_rx_char_handles_read;
+extern volatile bool all_servers_connected;
+extern volatile bool services_discovered;
+
+
+/* Dla "drzewa" urzadzen pamietanego przez klienta */
+typedef struct ConnectedSensor {
+	uint8_t sensorName[MAX_NAME_LEN];
+ 	float lastTempValue;
+ 	float lastHumidValue;
+} ConnectedSensor;
+/* Skanowanie serverow przez klienta */
+typedef enum {
+	DISCONNECTED,
+ 	READY_TO_CONNECT,
+ 	CONNECTED,
+	CONNECTED_AND_NOTIFICATIONS_ENABLED
+} ConnectionStatus;
+typedef struct FoundDeviceInfo {
+ 	uint8_t deviceAddressType;
+ 	tBDAddr deviceAddress;
+ 	uint8_t deviceName[MAX_NAME_LEN];
+ 	ConnectionStatus connStatus;
+ 	uint16_t connHandle;
+ 	//
+ 	uint8_t connSensorsCount;
+ 	ConnectedSensor connSensors[/*MAX_CONN_SENSORS*/MAX_CONNECTIONS]; //moze bardziej vector?
+} FoundDeviceInfo;
+
+//
+extern FoundDeviceInfo foundDevices[];
+extern uint8_t foundDevicesCount;
 
 /** @addtogroup Applications
  *  @{
@@ -94,7 +140,8 @@
 tBleStatus Add_Sample_Service(void);
 void Make_Connection(void);
 void receiveData(uint8_t* data_buffer, uint8_t Nb_bytes);
-void sendData(uint8_t* data_buffer, uint8_t Nb_bytes);
+//void sendData(uint8_t* data_buffer, uint8_t Nb_bytes);
+void sendData(uint8_t server_index, uint8_t* data_buffer, uint8_t Nb_bytes);
 void startReadTXCharHandle(void);
 void startReadRXCharHandle(void);
 void enableNotification(void);
@@ -103,7 +150,8 @@ void Attribute_Modified_CB(uint16_t handle, uint8_t data_length,
 void GAP_ConnectionComplete_CB(uint8_t addr[6], uint16_t handle);
 void GAP_DisconnectionComplete_CB(void);
 void GATT_Notification_CB(uint16_t attr_handle, uint8_t attr_len,
-                          uint8_t *attr_value);
+                          uint8_t *attr_value, uint16_t conn_handle);
+void GAP_AdvertisingReport_CB(le_advertising_info *adv_info);
 void user_notify(void * pData);
 /**
  * @}

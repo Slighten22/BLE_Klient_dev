@@ -35,10 +35,11 @@ extern "C" {
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "bluenrg_types.h"
-uint8_t dataBLE[VARIABLE_SIZE];
+#include <stdbool.h>
+#define MAX_MSGS 5 //ile max wiadomosci moze odebrac i zapamietac klient w czasie jednego slotu
 #define MSG_LEN 20
 //Delay time between following reads in ms
-#define delayTime 3000
+#define DELAY_TIME 3000
 //Sensor name max length (in characters)
 #define MAX_NAME_LEN 12
 

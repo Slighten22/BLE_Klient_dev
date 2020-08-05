@@ -35,17 +35,12 @@
   ******************************************************************************
   */
 /* Includes ------------------------------------------------------------------*/
+//#include "main.h"
 #include "sample_service.h"
 #include "bluenrg_gap_aci.h"
 #include "bluenrg_gatt_aci.h"
 #include "bluenrg_hal_aci.h"
-
-#include "app_x-cube-ble1.h"
 #include <stdbool.h>
-
-extern uint8_t dataBLE[];
-extern bool newData;
-extern uint8_t whichLoopIteration;
 
 /** @addtogroup Applications
  *  @{
@@ -63,24 +58,41 @@ extern uint8_t whichLoopIteration;
  * @{
  */
 /* Private variables ---------------------------------------------------------*/
-volatile int connected = FALSE;
-volatile uint8_t set_connectable = 1;
-volatile uint16_t connection_handle = 0;
-volatile uint8_t notification_enabled = FALSE;
-volatile uint8_t start_read_tx_char_handle = FALSE;
-volatile uint8_t start_read_rx_char_handle = FALSE;
-volatile uint8_t end_read_tx_char_handle = FALSE;
-volatile uint8_t end_read_rx_char_handle = FALSE;
-
-volatile uint8_t client_ready = FALSE;
-
-uint16_t tx_handle; /* Klient zna handle do charakterystyk servera */
-uint16_t rx_handle;
-
-uint16_t sampleServHandle, TXCharHandle, RXCharHandle; /* Server zna handle do swojego serwisu i swoich charakterystyk */
-
+//volatile uint16_t connectionHandles[MAX_CONNECTIONS];
+volatile uint8_t connectedDevicesCount = 0;
+volatile bool set_connectable = true;
+volatile bool client_ready = false;
+volatile bool discovery_started = false;
+volatile bool discovery_finished = false;
+volatile bool start_notifications_enable = false;
+volatile bool all_notifications_enabled = false;
+volatile bool start_read_tx_char_handle = false;//?
+volatile bool start_read_rx_char_handle = false;//?
+volatile bool all_tx_char_handles_read = false;
+volatile bool all_rx_char_handles_read = false;
+volatile bool all_servers_connected = false;
+volatile bool services_discovered = false;
+/* Klient zna handle do charakterystyk serverow */
+uint16_t txHandles[MAX_CONNECTIONS];
+uint8_t txHandlesDiscoveredCount = 0;
+uint16_t rxHandles[MAX_CONNECTIONS];
+uint8_t rxHandlesDiscoveredCount = 0;
+uint8_t notifications_enabled_count = 0;
+/* Server zna handle do swojego serwisu i swoich charakterystyk */
+uint16_t sampleServHandle, TXCharHandle, RXCharHandle;
 extern uint8_t bnrg_expansion_board;
+extern uint8_t whichLoopIteration;
+extern uint8_t whichServerConnecting;
+extern uint8_t dataBLE[][MSG_LEN];
+extern uint8_t newData;
 extern BLE_RoleTypeDef BLE_Role;
+extern osMutexId newDataMutexHandle;
+extern bool newDataPresent;
+
+//typedef-y do struktur -> w .h
+//FoundDeviceInfo foundDevices[MAX_CONNECTIONS]; //main.cpp
+uint8_t foundDevicesCount = 0;
+
 /**
  * @}
  */
@@ -151,70 +163,26 @@ fail:
  */
 void Make_Connection(void)
 {  
-  tBleStatus ret;
-  
-  if(BLE_Role == CLIENT) {
-    
-    printf("Client Create Connection\n");
-    
-
-    //TODO nowy adres servera do polaczenia
-//    tBDAddr bdaddr = {0xaa, 0x00, 0x00, 0xE1, 0x80, 0x02}; /* Adres servera */
-    tBDAddr bdaddr = {0xcc, 0x00, 0x00, 0xE1, 0x80, 0x02}; /* Adres servera */
-
-
+    tBleStatus ret;
     BSP_LED_On(LED2); //To indicate the start of the connection and discovery phase
-    
-    /*
-    Scan_Interval, Scan_Window, Peer_Address_Type, Peer_Address, Own_Address_Type, Conn_Interval_Min, 
-    Conn_Interval_Max, Conn_Latency, Supervision_Timeout, Conn_Len_Min, Conn_Len_Max    
-    */
-    ret = aci_gap_create_connection(
-    		SCAN_P, /* 10240 msec = Time interval from when the Controller started its last scan until it begins the subsequent scan = how long to wait between scans (for a number N, Time = N x 0.625 msec) */
-    		SCAN_L, /* 10240 msec = Scan Window: amount of time for the duration of the LE scan = how long to scan (for a number N, Time = N x 0.625 msec) */
-			PUBLIC_ADDR, /* Peer_Address_Type */
-			bdaddr, /* Peer_Address */
-			PUBLIC_ADDR, /* Own_Address_Type */
-			CONN_P1, /* 50 msec = Minimum Connection Period (interval) = time between two data transfer events (for a number N, Time = N x 1.25 msec) */
-			CONN_P2, /* 50 msec = Maximum Connection Period (interval) = Connection interval is the time between one radio event on a given connection and the next radio event on the same connection (for a number N, Time = N x 1.25 msec) */
-			0, /* Connection latency = If non-zero, the peripheral is allowed to skip up to slave latency radio events and not listen. That saves even more power, at the expense of even slower data. number of consecutive connection events where the slave doesn't need to listen on the master(?) */
-            SUPERV_TIMEOUT, /* 600 msec = Supervision Timeout (reset upon reception of a valid packet) max time between 2 packets before connection is considered lost (Time = N x 10 msec) */
-			CONN_L1, /* 1250 msec = Minimum Connection Length (for a number N, Time = N x 0.625 msec) */
-			CONN_L2  /* 1250 msec = Maximal Connection Length (for a number N, Time = N x 0.625 msec) */
+
+	printf("Client Create Connection with device %d\r\n\r\n", connectedDevicesCount+1);
+	ret = aci_gap_create_connection(
+		SCAN_P/*0x0010*/, /* 10240 msec = Scan Interval: from when the Controller started its last scan until it begins the subsequent scan = how long to wait between scans (for a number N, Time = N x 0.625 msec) */
+		SCAN_L/*0x0010*/, /* 10240 msec = Scan Window: amount of time for the duration of the LE scan = how long to scan (for a number N, Time = N x 0.625 msec) */
+		foundDevices[connectedDevicesCount].deviceAddressType, /* Peer_Address_Type */
+		foundDevices[connectedDevicesCount].deviceAddress, /* Peer_Address */
+		PUBLIC_ADDR, /* Own_Address_Type */
+		CONN_P1/*0x06C*/, /* 50 msec = Minimum Connection Period (interval) = time between two data transfer events (for a number N, Time = N x 1.25 msec) */
+		CONN_P2/*0x06C*/, /* 50 msec = Maximum Connection Period (interval) = Connection interval is the time between one radio event on a given connection and the next radio event on the same connection (for a number N, Time = N x 1.25 msec) */
+		0x0000, /* Connection latency = If non-zero, the peripheral is allowed to skip up to slave latency radio events and not listen. That saves even more power, at the expense of even slower data. number of consecutive connection events where the slave doesn't need to listen on the master(?) */
+		SUPERV_TIMEOUT/*0x0C80*/, /* 600 msec = Supervision Timeout (reset upon reception of a valid packet) max time between 2 packets before connection is considered lost (Time = N x 10 msec) */
+		/*CONN_L1*/0x000C, /* 7.5 msec (previously 1250 msec and not working) = Minimum Connection Length (for a number N, Time = N x 0.625 msec) */
+		/*CONN_L2*/0x000C  /* 7.5 msec (previously 1250 msec and not working) = Maximal Connection Length (for a number N, Time = N x 0.625 msec) */
 	);
-    
-    if (ret != 0){
-      printf("Error while starting connection.\n");
-    }
-    
-  } else  {
-    
-    const char local_name[] = {AD_TYPE_COMPLETE_LOCAL_NAME,'B','l','u','e','N','R','G','_','C','h','a','t'};
-    
-    /* disable scan response (nie bedize dodatkowych informacji o serverze dla mastera) */
-    hci_le_set_scan_resp_data(0,NULL);
-    
-    PRINTF("General Discoverable Mode ");
-    /*
-    Advertising_Event_Type, Adv_Interval_Min, Adv_Interval_Max, Address_Type, Adv_Filter_Policy,
-    Local_Name_Length, Local_Name, Service_Uuid_Length, Service_Uuid_List, Slave_Conn_Interval_Min,
-    Slave_Conn_Interval_Max
-    */
-    ret = aci_gap_set_discoverable(
-    		ADV_DATA_TYPE, /* undirected scannable and connectable = Advertising_Event_Type */
-			ADV_INTERV_MIN,/* 1280 msec = Minimum Advertising Interval https://www.argenox.com/library/bluetooth-low-energy/ble-advertising-primer/(for a number N, Time = N x 0.625 msec) */
-			ADV_INTERV_MAX,/* 2560 msec = Maximal Advertising Interval (slow advertising, non-critical latency) (for a number N, Time = N x 0.625 msec) */
-			PUBLIC_ADDR,   /* public address = Address_Type */
-            NO_WHITE_LIST_USE,/* Process scan and connection requests from all devices (i.e., the White List is not in use) */
-			13, /* Local_Name_Length (= 0x09BlueNRG_Chat) */
-			local_name, /* 0x09BlueNRG_Chat */
-			0, /* Service_Uuid_Length */
-			NULL, /* Service_Uuid_List */
-			0, /* Slave_Conn_Interval_Min = time between one radio event on a given connection and the next radio event on the same connection */
-			0  /* Slave_Conn_Interval_Max https://devzone.nordicsemi.com/f/nordic-q-a/25340/do-i-understand-ble-connection-interval-properly */
-	);
-    PRINTF("%d\n",ret);
-  }
+	if (ret != BLE_STATUS_SUCCESS){
+	  printf("Error while starting connection with device %d\r\n\r\n", connectedDevicesCount);
+	}
 }
 
 /**
@@ -224,14 +192,12 @@ void Make_Connection(void)
  */
 void startReadTXCharHandle(void)
 {
-  if (!start_read_tx_char_handle)
+  if (!all_tx_char_handles_read)
   {    
     PRINTF("Start reading TX Char Handle\n");
-    
-    //TODO inne charakterystyki TX, RX (roznica na 3. bajcie)
-    const uint8_t charUuid128_TX[16] = {0x66,0x9a,0x0c,0x20,0x00,0x08,0x96,0x9e,0xe2,0x11,0x9e,0xb1,/*0xe1*/0xe4,0xf2,0x73,0xd9};
-    aci_gatt_disc_charac_by_uuid(connection_handle, 0x0001, 0xFFFF, UUID_TYPE_128, charUuid128_TX);
     start_read_tx_char_handle = TRUE;
+	const uint8_t charUuid128_TX[16] = {0x66,0x9a,0x0c,0x20,0x00,0x08,0x96,0x9e,0xe2,0x11,0x9e,0xb1,0xe1,0xf2,0x73,0xd9};
+    aci_gatt_disc_charac_by_uuid(foundDevices[txHandlesDiscoveredCount].connHandle, 0x0001, 0xFFFF, UUID_TYPE_128, charUuid128_TX);
   }
 }
 
@@ -242,14 +208,12 @@ void startReadTXCharHandle(void)
  */
 void startReadRXCharHandle(void)
 {  
-  if (!start_read_rx_char_handle)
+  if (!all_rx_char_handles_read)
   {
     PRINTF("Start reading RX Char Handle\n");
-    
-    //TODO inne charakterystyki TX, RX (roznica na 3. bajcie)
-    const uint8_t charUuid128_RX[16] = {0x66,0x9a,0x0c,0x20,0x00,0x08,0x96,0x9e,0xe2,0x11,0x9e,0xb1,/*0xe2*/0xe5,0xf2,0x73,0xd9};
-    aci_gatt_disc_charac_by_uuid(connection_handle, 0x0001, 0xFFFF, UUID_TYPE_128, charUuid128_RX);
     start_read_rx_char_handle = TRUE;
+    const uint8_t charUuid128_RX[16] = {0x66,0x9a,0x0c,0x20,0x00,0x08,0x96,0x9e,0xe2,0x11,0x9e,0xb1,0xe2,0xf2,0x73,0xd9};
+    aci_gatt_disc_charac_by_uuid(foundDevices[rxHandlesDiscoveredCount].connHandle, 0x0001, 0xFFFF, UUID_TYPE_128, charUuid128_RX);
   }
 }
 
@@ -263,31 +227,29 @@ void startReadRXCharHandle(void)
 void receiveData(uint8_t* data_buffer, uint8_t Nb_bytes)
 {
   BSP_LED_Off(LED2);
-
   for(int i = 0; i < Nb_bytes; i++) {
-    printf("%c", data_buffer[i]);
-  } //obudowac do wysylania
-  // tu moze byc obudowa uartowa/samo wysylanie wartosci temp i wilgotnosci
+	  printf("%c", data_buffer[i]);
+  }
   fflush(stdout);
 }
 
 /**
  * @brief  This function is used to send data related to the sample service
  *         (to be sent over the air to the remote board).
+ * @param  server_index : index of the server which will receive data
  * @param  data_buffer : pointer to data to be sent
  * @param  Nb_bytes : number of bytes to send
  * @retval None
  */
-void sendData(uint8_t* data_buffer, uint8_t Nb_bytes)
+//void sendData(uint8_t* data_buffer, uint8_t Nb_bytes)
+void sendData(uint8_t server_index, uint8_t* data_buffer, uint8_t Nb_bytes)
 {
-  if(BLE_Role == SERVER) {    
-    aci_gatt_update_char_value(sampleServHandle,TXCharHandle, 0, Nb_bytes, data_buffer);    
-  }
-  else { /* Klient do serwera */
-    aci_gatt_write_without_response(connection_handle, rx_handle+1, Nb_bytes, data_buffer); /* Max 20 bajtow na jedno wywolanie funkcji, serwer nie potwierdza otrzymania pakietu */
+	/* Klient wysyla dane do serwera */
+	//TODO wysylanie do konkretnego serwera (adres lub nazwa)
+	uint8_t server_ind = (server_index <= connectedDevicesCount ? server_index : connectedDevicesCount); /* Aby wyslac do polaczonego servera */
+    aci_gatt_write_without_response(foundDevices[server_ind].connHandle, rxHandles[server_ind]+1, Nb_bytes, data_buffer); /* Max 20 bajtow na jedno wywolanie funkcji, serwer nie potwierdza otrzymania pakietu */
 	//aci_gatt_write_charac_value(connection_handle, rx_handle+1, Nb_bytes, data_buffer); /* The client provides a handle and the contents of the value (up to ATT_MTU-3 bytes, because the handle and the ATT operation code are included in the packet with the data) and the server will !acknowledge the write operation with a response! */
 	//aci_gatt_write_long_charac_val(connection_handle, rx_handle+1, 0, Nb_bytes, data_buffer); /* This permits a client to write more than ATT_MTU-3 bytes of data into a server’s characteristic value or descriptor. It works by queueing several prepare write operations, each of which includes an offset and the data itself, and then finally writing them all atomically with an execute write operation. */
-  }
 }
 
 /**
@@ -298,14 +260,19 @@ void sendData(uint8_t* data_buffer, uint8_t Nb_bytes)
 void enableNotification(void)
 {
   uint8_t client_char_conf_data[] = {0x01, 0x00}; /* Enable notifications */
-  
   uint32_t tickstart = HAL_GetTick();
+  start_notifications_enable = TRUE;
   
-  while(aci_gatt_write_charac_descriptor(connection_handle, tx_handle+2, 2, client_char_conf_data)==BLE_STATUS_NOT_ALLOWED){ /* ? */
-    /* Radio is busy */
-    if ((HAL_GetTick() - tickstart) > (10*HCI_DEFAULT_TIMEOUT_MS)) break;
+  while(notifications_enabled_count < connectedDevicesCount){
+	  while(aci_gatt_write_charac_descriptor(foundDevices[notifications_enabled_count].connHandle, txHandles[notifications_enabled_count]+2, 2, client_char_conf_data)==BLE_STATUS_NOT_ALLOWED){ /* ? */
+		/* Radio is busy */
+		if ((HAL_GetTick() - tickstart) > (10*HCI_DEFAULT_TIMEOUT_MS)) break;
+	  }
+	  foundDevices[notifications_enabled_count].connStatus = CONNECTED_AND_NOTIFICATIONS_ENABLED;
+	  notifications_enabled_count++;
   }
-  notification_enabled = TRUE;
+  all_notifications_enabled = TRUE; //?
+  printf("All notifications enabled!\r\nReady to exchange data!\r\n\r\n");
 }
 
 /**
@@ -321,7 +288,7 @@ void Attribute_Modified_CB(uint16_t handle, uint8_t data_length, uint8_t *att_da
     receiveData(att_data, data_length);
   } else if (handle == TXCharHandle + 2) {        
     if(att_data[0] == 0x01)
-      notification_enabled = TRUE;
+    	start_notifications_enable = TRUE; //?
   }
 }
 
@@ -333,14 +300,22 @@ void Attribute_Modified_CB(uint16_t handle, uint8_t data_length, uint8_t *att_da
  */
 void GAP_ConnectionComplete_CB(uint8_t addr[6], uint16_t handle)
 {  
-  connected = TRUE;
-  connection_handle = handle;
-  
-  printf("Connected to device:");
+  foundDevices[connectedDevicesCount].connHandle = handle;
+  foundDevices[connectedDevicesCount].connStatus = CONNECTED;
+  connectedDevicesCount++;
+  printf("Connected to device: ");
   for(int i = 5; i > 0; i--){
     printf("%02X-", addr[i]);
   }
-  printf("%02X\n", addr[0]);
+  printf("%02X\r\n\r\n", addr[0]);
+  printf("Connection handle: %04X\r\n\r\n", handle);
+  if(connectedDevicesCount < foundDevicesCount){
+	  Make_Connection();
+  }
+  else if(connectedDevicesCount == foundDevicesCount){
+	  all_servers_connected = TRUE;
+	  printf("All found devices connected!\r\n\r\n");
+  }
 }
 
 /**
@@ -350,16 +325,18 @@ void GAP_ConnectionComplete_CB(uint8_t addr[6], uint16_t handle)
  */
 void GAP_DisconnectionComplete_CB(void)
 {
-  connected = FALSE;
+  all_servers_connected = FALSE;
   
   printf("Disconnected\n");
+
+  //TODO: przemyslec zachowanie klienta po rozlaczeniu polaczenia!
   /* Make the device connectable again. */
-  set_connectable = TRUE;
-  notification_enabled = FALSE;
-  start_read_tx_char_handle = FALSE;
-  start_read_rx_char_handle = FALSE;
-  end_read_tx_char_handle = FALSE;
-  end_read_rx_char_handle = FALSE;
+//  set_connectable = TRUE;
+//  start_notifications_enable = FALSE;
+//  start_read_tx_char_handle = FALSE;
+//  start_read_rx_char_handle = FALSE;
+//  all_tx_char_handles_read = FALSE;
+//  all_rx_char_handles_read = FALSE;
 }
 
 /**
@@ -369,17 +346,61 @@ void GAP_DisconnectionComplete_CB(void)
  * @param  attr_value  Attribute value in the notification
  * @retval None
  */
-void GATT_Notification_CB(uint16_t attr_handle, uint8_t attr_len, uint8_t *attr_value)
+//void GATT_Notification_CB(uint16_t attr_handle, uint8_t attr_len, uint8_t *attr_value)
+void GATT_Notification_CB(uint16_t attr_handle, uint8_t attr_len, uint8_t *attr_value, uint16_t conn_handle)
 {
-	/* Odebrane dane od servera */
-    if (attr_handle == tx_handle+1 && attr_len != 0 && *attr_value != '\0') {
-	  for(int i=0; i<attr_len && i<20; i++){
-		  dataBLE[i] = *(attr_value+i);
+	/* !Odebrane dane od servera! */
+    if (attr_handle == txHandles[txHandlesDiscoveredCount-1]+1 && attr_len != 0 && *attr_value != '\0') { //TODO check txHandles[txHandlesDiscoveredCount] -> wszystkie handle sa takie same, rozrozniac urzadzenia mozna po pozycji w connectionHandles[] i po adresie z foundDevices[]
+    	xSemaphoreTake(newDataMutexHandle, DELAY_TIME);
+    	memset((char *)dataBLE[newData], '\0', MSG_LEN);
+    	for(int i=0; i<=attr_len && i<=MSG_LEN; i++){ //nazwa czujnika, dane
+    		dataBLE[newData][i] = *(attr_value+i);
+    	}
+    	//handle do polaczenia
+    	dataBLE[newData][attr_len] = ((conn_handle >> 8) & 0xFF);
+    	dataBLE[newData][attr_len+1] = (conn_handle & 0xFF);
+
+      	if(newData+1<MAX_MSGS){
+      		newData++;
+      	}
+      	xSemaphoreGive(newDataMutexHandle);
+    }
+}
+
+/**
+ * @brief  This function is called when the client found an advertising device to which it may want to connect.
+ * @param  adv_info		Structure containing information about the advertising device
+ * @retval None
+ */
+void GAP_AdvertisingReport_CB(le_advertising_info *adv_info){
+	//TODO kopiowanie nazwy!
+	char deviceName[] = "name";
+	//nazwa - zaczyna sie od bitu o ind. 6, 'test' ma 4 znaki
+	memcpy(deviceName, adv_info->data_RSSI+6, 4);
+	//sprawdzic, czy zgadza sie nazwa = czy chcemy sie polaczyc ze znalezionym urzadzeniem
+	if(strcmp((char *)deviceName, "test") == 0){
+	  //sprawdzic, czy znalezione urzadzenie to nie duplikat (czy nie mamy juz tego adresu w tablicy)
+	  bool isDeviceNew = true;
+	  tBDAddr foundDeviceAddress;
+	  memcpy(foundDeviceAddress, adv_info->bdaddr+1, BD_ADDR_SIZE);
+	  for(int i=0; i<foundDevicesCount; i++){
+		  if(strcmp((char *)foundDeviceAddress, (char *)foundDevices[foundDevicesCount].deviceAddress) == 0){
+			  isDeviceNew = false;
+		  }
 	  }
-	  if(client_ready){
-		  newData = true;
+	  if(isDeviceNew){
+		  printf("New device found!\r\n\r\n");
+		  //dodac nowo znalezione urzadzenie do tablicy pamietanych urzadzen, zwiekszyc liczbe pamietanych urzadzen
+		  foundDevices[foundDevicesCount].deviceAddressType = adv_info->bdaddr_type;
+		  memcpy(foundDevices[foundDevicesCount].deviceAddress, adv_info->bdaddr+1, BD_ADDR_SIZE);
+		  //nazwa i status
+		  memcpy(foundDevices[foundDevicesCount].deviceName, adv_info->data_RSSI+6, 4); //TODO nazwa moze byc rozna niz test!!!
+		  foundDevices[foundDevicesCount].connStatus = READY_TO_CONNECT;
+		  if(foundDevicesCount+1<MAX_CONNECTIONS){
+			  foundDevicesCount++;
+		  }
 	  }
-  }
+	}
 }
 
 /**
@@ -400,98 +421,141 @@ void user_notify(void * pData) /* Parsowanie otrzymanego eventu */
   
   switch(event_pckt->evt){
 
-  /* Disconnection */
-  case EVT_DISCONN_COMPLETE:
-    {
-      GAP_DisconnectionComplete_CB();
-    }
-    break;
-    
-  /* Connection Complete */
-  case EVT_LE_META_EVENT:
-    {
-      evt_le_meta_event *evt = (void *)event_pckt->data;
-      
-      switch(evt->subevent){
-      case EVT_LE_CONN_COMPLETE:
-        {
-          evt_le_connection_complete *cc = (void *)evt->data;
-          GAP_ConnectionComplete_CB(cc->peer_bdaddr, cc->handle);
-        }
-        break;
-      }
-    }
-    break;
-    
-  /* 4 rozne typy eventow EVT_VENDOR: */
-  case EVT_VENDOR:
-    {
-      evt_blue_aci *blue_evt = (void*)event_pckt->data;
-      switch(blue_evt->ecode){
-        
-      /* Attribute modified (zmieniaja sie handle TX i RX) */
-      case EVT_BLUE_GATT_ATTRIBUTE_MODIFIED:
-        {
-          if (bnrg_expansion_board == IDB05A1) {
-            evt_gatt_attr_modified_IDB05A1 *evt = (evt_gatt_attr_modified_IDB05A1*)blue_evt->data;
-            Attribute_Modified_CB(evt->attr_handle, evt->data_length, evt->att_data);
-          }
-          else {
-            evt_gatt_attr_modified_IDB04A1 *evt = (evt_gatt_attr_modified_IDB04A1*)blue_evt->data;
-            Attribute_Modified_CB(evt->attr_handle, evt->data_length, evt->att_data);
-          }
-          
-        }
-        break;
+	  /* Disconnection */
+	  case EVT_DISCONN_COMPLETE:
+		{
+		  //TODO: po rozlaczeniu: odpowiedni komunikat, zmiana statusu odp. polaczenia na DISCCONNECTED i ew. ponowne wyszukiwanie
+		  GAP_DisconnectionComplete_CB();
+		}
+		break;
 
-      /* GATT notification = odebrane dane od servera */
-      case EVT_BLUE_GATT_NOTIFICATION:
-        {
-          evt_gatt_attr_notification *evt = (evt_gatt_attr_notification*)blue_evt->data;
-          GATT_Notification_CB(evt->attr_handle, evt->event_data_length - 2, evt->attr_value);
-          /* a w callbacku odbior otrzymanych danych do jakiejs tablicy */
-        }
-        break;
+	  /* Connection Complete, Advertising Report */
+	  case EVT_LE_META_EVENT:
+		{
+		  evt_le_meta_event *evt = (void *)event_pckt->data;
 
-      /* Odczytwanie charakterystyk slave'a czyli poznawanie TX i RX handles */
-      case EVT_BLUE_GATT_DISC_READ_CHAR_BY_UUID_RESP:
-        if(BLE_Role == CLIENT) {
-          PRINTF("EVT_BLUE_GATT_DISC_READ_CHAR_BY_UUID_RESP\n");
-          
-          evt_gatt_disc_read_char_by_uuid_resp *resp = (void*)blue_evt->data;
-          
-          if (start_read_tx_char_handle && !end_read_tx_char_handle)
-          {
-            tx_handle = resp->attr_handle;
-            printf("TX Char Handle %04X\n", tx_handle);
-          }
-          else if (start_read_rx_char_handle && !end_read_rx_char_handle)
-          {
-            rx_handle = resp->attr_handle;
-            printf("RX Char Handle %04X\n", rx_handle);
-          }
-        }
-        break;
-        
-      /* Potrzebne dla mastera w UserProcess */
-      case EVT_BLUE_GATT_PROCEDURE_COMPLETE:
-        if(BLE_Role == CLIENT) {
-          /* Wait for gatt procedure complete event trigger related to Discovery Charac by UUID */
-          //evt_gatt_procedure_complete *pr = (void*)blue_evt->data;
-          
-          if (start_read_tx_char_handle && !end_read_tx_char_handle)
-          {
-            end_read_tx_char_handle = TRUE;
-          }
-          else if (start_read_rx_char_handle && !end_read_rx_char_handle)
-          {
-            end_read_rx_char_handle = TRUE;
-          }
-        }
-        break;
-      }
-    }
-    break;
+		  switch(evt->subevent){
+			  case EVT_LE_CONN_COMPLETE:
+				{
+				  evt_le_connection_complete *cc = (void *)evt->data;
+				  GAP_ConnectionComplete_CB(cc->peer_bdaddr, cc->handle);
+				}
+				break;
+
+				/* Klient znalazl urzadzenie podczas skanowania */
+				case EVT_LE_ADVERTISING_REPORT:
+				{
+				  //wyciagnac info o typie adresu, adres i nazwe urzadzenia
+				  le_advertising_info *adv_info = (void*)evt->data;
+				  GAP_AdvertisingReport_CB(adv_info);
+				}
+				break;
+		  }
+		}
+		break;
+
+	  /* rozne typy eventow EVT_VENDOR: */
+	  case EVT_VENDOR:
+		{
+		  evt_blue_aci *blue_evt = (void*)event_pckt->data;
+		  switch(blue_evt->ecode){
+
+			  /* Attribute modified (zmieniaja sie handle TX i RX) - server odbiera dane */
+			  case EVT_BLUE_GATT_ATTRIBUTE_MODIFIED:
+				{
+				  if (bnrg_expansion_board == IDB05A1) {
+					evt_gatt_attr_modified_IDB05A1 *evt = (evt_gatt_attr_modified_IDB05A1*)blue_evt->data;
+					Attribute_Modified_CB(evt->attr_handle, evt->data_length, evt->att_data);
+				  }
+				  else {
+					evt_gatt_attr_modified_IDB04A1 *evt = (evt_gatt_attr_modified_IDB04A1*)blue_evt->data;
+					Attribute_Modified_CB(evt->attr_handle, evt->data_length, evt->att_data);
+				  }
+
+				}
+				break;
+
+			  /* GATT notification = odebrane dane od servera */
+			  case EVT_BLUE_GATT_NOTIFICATION:
+				{
+				  evt_gatt_attr_notification *evt = (evt_gatt_attr_notification*)blue_evt->data;
+				  /* mozna jeszcze wykorzystac handle do polaczenia, ktory przychodzi razem z pakietem */
+//				  GATT_Notification_CB(evt->attr_handle, evt->event_data_length - 2, evt->attr_value);
+				  GATT_Notification_CB(evt->attr_handle, evt->event_data_length - 2, evt->attr_value, evt->conn_handle);
+				  /* a w callbacku odbior otrzymanych danych do jakiejs tablicy */
+				}
+				break;
+
+			  /* Odczytwanie charakterystyk slave'a czyli zapamietywanie TX i RX handles */
+			  case EVT_BLUE_GATT_DISC_READ_CHAR_BY_UUID_RESP:
+			  {
+				if(BLE_Role == CLIENT) {
+				  PRINTF("EVT_BLUE_GATT_DISC_READ_CHAR_BY_UUID_RESP\n");
+
+				  evt_gatt_disc_read_char_by_uuid_resp *resp = (void*)blue_evt->data;
+
+				  if (start_read_tx_char_handle && !all_tx_char_handles_read)
+				  {
+					txHandles[txHandlesDiscoveredCount] = resp->attr_handle;
+					printf("TX Char Handle %04X\r\n\r\n", txHandles[txHandlesDiscoveredCount]);
+					//dalej (sprawdzenie czy to juz wszystkie ch-tyki TX) juz w EVT_BLUE_GATT_PROCEDURE_COMPLETE
+				  }
+				  if (start_read_rx_char_handle && !all_rx_char_handles_read)
+				  {
+					rxHandles[rxHandlesDiscoveredCount] = resp->attr_handle;
+					printf("RX Char Handle %04X\r\n\r\n", rxHandles[rxHandlesDiscoveredCount]);
+					//dalej (sprawdzenie czy to juz wszystkie ch-tyki RX) juz w EVT_BLUE_GATT_PROCEDURE_COMPLETE
+				  }
+				}
+			  }
+				break;
+
+			  /* Potrzebne dla mastera w UserProcess */
+			  case EVT_BLUE_GATT_PROCEDURE_COMPLETE:
+			    if(BLE_Role == CLIENT) {
+				  evt_gatt_procedure_complete *evt = (void *)blue_evt->data;
+				  //chyba tylko przez wartosci zmiennych globalnych da sie ustalic co sie stalo, tak jak nizej
+				  if(evt->error_code == BLE_STATUS_SUCCESS){
+					  //printf("EVT_BLUE_GATT_PROCEDURE_COMPLETE\r\n"); //jaka dokladnie procedura? trzeba sprawdzac po zmiennych glob.!
+					  if (start_read_tx_char_handle && !all_tx_char_handles_read)
+					  {
+						txHandlesDiscoveredCount++;
+						if(txHandlesDiscoveredCount == connectedDevicesCount){
+							all_tx_char_handles_read = TRUE;
+							printf("All TX handles read!\r\n\r\n");
+						}
+						else if(txHandlesDiscoveredCount < connectedDevicesCount){
+							startReadTXCharHandle();
+						}
+					  }
+					  if (start_read_rx_char_handle && !all_rx_char_handles_read)
+					  {
+						rxHandlesDiscoveredCount++;
+						if(rxHandlesDiscoveredCount == connectedDevicesCount){
+							all_rx_char_handles_read = TRUE;
+							printf("All RX handles read!\r\n\r\n");
+						}
+						else if(rxHandlesDiscoveredCount < connectedDevicesCount){
+							startReadRXCharHandle();
+						}
+					  }
+				  }
+				}
+				break;
+
+			  /* Koniec skanowania klienta w poszukiwaniu serverow */
+			  case EVT_BLUE_GAP_PROCEDURE_COMPLETE:
+			  {
+				  evt_gap_procedure_complete *evt = (evt_gap_procedure_complete *)blue_evt->data;
+				  if(evt->procedure_code == GAP_GENERAL_DISCOVERY_PROC && evt->status == BLE_STATUS_SUCCESS){
+					  printf("Scanning for devices finished\r\n\r\n");
+					  discovery_finished = TRUE;
+				  }
+			  }
+			  break;
+		  }
+		} /* EVT_VENDOR */
+		break;
   }    
 }
 /**

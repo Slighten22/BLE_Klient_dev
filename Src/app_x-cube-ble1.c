@@ -31,8 +31,8 @@
 /* Includes ------------------------------------------------------------------*/
 #include "app_x-cube-ble1.h"
 
-#include "hci_tl.h"
 #include "sample_service.h"
+#include "hci_tl.h"
 #include "role_type.h"
 #include "bluenrg_utils.h"
 #include "bluenrg_gatt_server.h"
@@ -44,8 +44,16 @@
 #include <string.h>
 #include <stdbool.h>
 extern bool newConfig;
-extern uint8_t sentConfigurationMsg[20];
+extern uint8_t sentConfigurationMsg[MSG_LEN];
 extern uint8_t whichLoopIteration;
+extern uint8_t foundDevicesCount;
+
+
+extern volatile bool start_read_tx_char_handle;
+extern volatile bool start_read_rx_char_handle;
+extern uint8_t whichServerReceivesConfiguration;
+uint8_t whichServerConnecting = 1;
+
 /* USER CODE END */
 
 /* Private defines -----------------------------------------------------------*/
@@ -61,7 +69,7 @@ extern uint8_t whichLoopIteration;
 /* Private macros ------------------------------------------------------------*/
 
 /* Private variables ---------------------------------------------------------*/
-uint8_t bnrg_expansion_board = IDB04A1; /* at startup, suppose the X-NUCLEO-IDB04A1 is used */  
+uint8_t bnrg_expansion_board = IDB04A1; /* at startup, suppose the X-NUCLEO-IDB04A1 is used */
 static volatile uint8_t user_button_init_state = 1;
 static volatile uint8_t user_button_pressed = 0;
 
@@ -71,13 +79,17 @@ static volatile uint8_t user_button_pressed = 0;
   BLE_RoleTypeDef BLE_Role = CLIENT;
 #endif
 
-extern volatile uint8_t set_connectable;
-extern volatile int     connected;
-extern volatile uint8_t notification_enabled;
-extern volatile uint8_t client_ready;
-
-extern volatile uint8_t end_read_tx_char_handle;
-extern volatile uint8_t end_read_rx_char_handle;
+extern volatile bool set_connectable;
+extern volatile bool all_servers_connected;
+extern volatile bool client_ready;
+extern volatile bool discovery_started;
+extern volatile bool discovery_finished;
+extern volatile bool start_notifications_enable;
+extern volatile bool all_notifications_enabled;
+extern volatile bool services_discovered;
+extern volatile bool all_tx_char_handles_read;
+extern volatile bool all_rx_char_handles_read;
+extern volatile uint16_t connectionHandles[];
 
 /* USER CODE BEGIN PV */
 
@@ -115,7 +127,6 @@ void MX_BlueNRG_MS_Init(void)
 
   /* Initialize the peripherals and the BLE Stack */
   uint8_t CLIENT_BDADDR[] = {0xbb, 0x00, 0x00, 0xE1, 0x80, 0x02};
-  uint8_t SERVER_BDADDR[] = {0xaa, 0x00, 0x00, 0xE1, 0x80, 0x02};
   uint8_t bdaddr[BDADDR_SIZE];
   uint16_t service_handle, dev_name_char_handle, appearance_char_handle;
   
@@ -136,6 +147,13 @@ void MX_BlueNRG_MS_Init(void)
   /* get the BlueNRG HW and FW versions */
   getBlueNRGVersion(&hwVersion, &fwVersion);
 
+  printf("CLIENT: Started initializing the BLE Stack\r\n\r\n");
+  printf("HWver %d, FWver %d\r\n\r\n", hwVersion, fwVersion);
+
+  if (hwVersion > 0x30) { /* Yes, X-NUCLEO-IDB05A1 expansion board is used */
+    bnrg_expansion_board = IDB05A1;
+  }
+
   /* 
    * Reset BlueNRG again otherwise we won't
    * be able to change its MAC address.
@@ -144,57 +162,44 @@ void MX_BlueNRG_MS_Init(void)
    */
   hci_reset();
   
-  delayMicrosecondsBLE(100000);
-  
-  printf("HWver %d, FWver %d\n", hwVersion, fwVersion);
-  
-  if (hwVersion > 0x30) { /* Yes, X-NUCLEO-IDB05A1 expansion board is used */
-    bnrg_expansion_board = IDB05A1; 
+  /* Wpisanie trybu pracy urzadzenia: tryb 3 - "Mode 3: master/slave, 8 connections, RAM1 and RAM2." */
+  const uint8_t stackMode[] = {0x03};
+  ret = aci_hal_write_config_data(CONFIG_DATA_MODE_OFFSET,
+                                  CONFIG_DATA_MODE_LEN,
+                                  stackMode);
+  if (ret != BLE_STATUS_SUCCESS) {
+    printf("Setting stack mode failed 0x%02x.\n", ret);
   }
-  
+
   /* Skopiowanie i wpisanie adresu urzadzenia bdaddr */
-  if (BLE_Role == CLIENT) {
-    BLUENRG_memcpy(bdaddr, CLIENT_BDADDR, sizeof(CLIENT_BDADDR));
-  } else { /* TODO: rozne adresy roznych serverow */
-    BLUENRG_memcpy(bdaddr, SERVER_BDADDR, sizeof(SERVER_BDADDR));
-  }
+  BLUENRG_memcpy(bdaddr, CLIENT_BDADDR, sizeof(CLIENT_BDADDR));
   ret = aci_hal_write_config_data(CONFIG_DATA_PUBADDR_OFFSET,
-                                  CONFIG_DATA_PUBADDR_LEN,
-                                  bdaddr);
-  if (ret) {
+								  CONFIG_DATA_PUBADDR_LEN,
+								  bdaddr);
+  if (ret != BLE_STATUS_SUCCESS) {
     printf("Setting BD_ADDR failed 0x%02x.\n", ret);
   }
   
+  /* Set output power level */
+  ret = aci_hal_set_tx_power_level(1,4);
+  if (ret != BLE_STATUS_SUCCESS) {
+    printf("Setting power level failed 0x%02x.\n", ret);
+  }
+
   /* GATT init? */
   ret = aci_gatt_init();    
-  if (ret) {
+  if (ret != BLE_STATUS_SUCCESS) {
     printf("GATT_Init failed.\n");
   }
   
-  if (BLE_Role == SERVER) {
-    if (bnrg_expansion_board == IDB05A1) {
-      /* Server: Inicjalizacja GAP (Generic Access Profile) - ustawia role urzadzenia, sciaga handle do nazwy i do serwisow */
-      ret = aci_gap_init_IDB05A1(GAP_PERIPHERAL_ROLE_IDB05A1, 0, 0x07, &service_handle, &dev_name_char_handle, &appearance_char_handle);
-    }
-    else {
-      ret = aci_gap_init_IDB04A1(GAP_PERIPHERAL_ROLE_IDB04A1, &service_handle, &dev_name_char_handle, &appearance_char_handle);
-    }
-  }
-  else {
-    if (bnrg_expansion_board == IDB05A1) {
-      /* Klient: Inicjalizacja GAP (Generic Access Profile) - ustawia role urzadzenia, sciaga handle do nazwy i (nieuzywany?)do serwisow */
-      ret = aci_gap_init_IDB05A1(GAP_CENTRAL_ROLE_IDB05A1, 0, 0x07, &service_handle, &dev_name_char_handle, &appearance_char_handle);
-    }
-    else {
-      ret = aci_gap_init_IDB04A1(GAP_CENTRAL_ROLE_IDB04A1, &service_handle, &dev_name_char_handle, &appearance_char_handle);
-    }
-  }
-  
+  /* Klient: Inicjalizacja GAP (Generic Access Profile) - ustawia role urzadzenia, sciaga handle do nazwy i (nieuzywany?)do serwisow */
+  ret = aci_gap_init_IDB05A1(GAP_CENTRAL_ROLE_IDB05A1, 0x00, 0x07, &service_handle, &dev_name_char_handle, &appearance_char_handle);
   if (ret != BLE_STATUS_SUCCESS) {
     printf("GAP_Init failed.\n");
   }
-    
+
   /* Wymagania autoryzacji - w tym ustalony (staly) kod pin, typ klucza autoryzacji, tryb laczenia */
+  //nie ma znaczenia, czy to jest, czy nie ma! lacza sie i tak w ten sam sposob
   ret = aci_gap_set_auth_requirement(MITM_PROTECTION_REQUIRED,
                                      OOB_AUTH_DATA_ABSENT,
                                      NULL,
@@ -204,25 +209,8 @@ void MX_BlueNRG_MS_Init(void)
                                      123456,
                                      BONDING);
   if (ret == BLE_STATUS_SUCCESS) {
-    printf("BLE Stack Initialized.\n");
+    printf("BLE Stack Initialized.\r\n\r\n");
   }
-  
-  if (BLE_Role == SERVER) { /* TODO: rozroznic id serwisu i charakterystyk roznych serverow */
-    printf("SERVER: BLE Stack Initialized\n");
-    /* ! Dodawanie glownego serwisu i charakterystyk TX i RX przez serwer! */
-    ret = Add_Sample_Service();
-    
-    if (ret == BLE_STATUS_SUCCESS)
-      printf("Service added successfully.\n");
-    else
-      printf("Error while adding service.\n");
-    
-  } else {
-    printf("CLIENT: BLE Stack Initialized\n");
-  }
-  
-  /* Set output power level */
-  ret = aci_hal_set_tx_power_level(1,4);
 
   /* USER CODE BEGIN BlueNRG_MS_Init_PostTreatment */
   
@@ -272,41 +260,58 @@ static void User_Init(void)
  */
 static void User_Process(void)
 {
-  if (set_connectable) 
-  {
-    /* Establish connection with remote device */
-    Make_Connection(); /* Stworzenie (nie nawiazanie) polaczenia (master) lub ustawienie wykrywalnosci (slave) */
-    set_connectable = FALSE;
-    user_button_init_state = BSP_PB_GetState(BUTTON_KEY);
-  }
-  
-  if (BLE_Role == CLIENT) 
-  {
+	/* Wyszukiwanie serverow przez klienta */
+	if(!discovery_started){
+		tBleStatus ret = aci_gap_start_general_discovery_proc(0x10, 0x10, PUBLIC_ADDR, 0x01); //filter duplicates
+		//The two devices are discovered through the EVT_LE_ADVERTISING_REPORT events (sample_service.c).
+		if (ret != BLE_STATUS_SUCCESS) {
+			printf("Error starting device discovery process!\r\n\r\n");
+		}
+		else{
+			discovery_started = TRUE;
+			printf("Device discovery process started\r\n\r\n");
+		}
+	}
+
+	if(set_connectable && discovery_finished)
+	{
+		/* Establish connection with first remote device */
+		if(foundDevicesCount > 0){
+			Make_Connection(); /* Stworzenie (nie nawiazanie) polaczenia (master) lub ustawienie wykrywalnosci (slave) */
+			set_connectable = false;
+		}
+		else{
+			printf("No connectable devices found!\r\n\r\n");
+			discovery_started = false;
+			discovery_finished = false;
+		}
+	}
+
     /* Start TX handle Characteristic dynamic discovery if not yet done */
-	/* z user_notify ustawiamy connected po nawiazaniu polaczenia = Skad jest wywolywane GAP_ConnectionComplete_CB */
-    if (connected && !end_read_tx_char_handle){
+    if (all_servers_connected && !start_read_tx_char_handle){
       startReadTXCharHandle();
     }
     /* Start RX handle Characteristic dynamic discovery if not yet done */
-    else if (connected && !end_read_rx_char_handle){      
+    if (all_servers_connected && all_tx_char_handles_read && !start_read_rx_char_handle){
       startReadRXCharHandle();
     }
-    
-    if (connected && end_read_tx_char_handle && end_read_rx_char_handle && !notification_enabled) 
+    /* Enable notifications to start data exchange */
+    if (all_servers_connected && all_tx_char_handles_read && all_rx_char_handles_read && !start_notifications_enable)
     {
       BSP_LED_Off(LED2); /* end of the connection and chars discovery phase */
-      enableNotification(); /* Wlacz wymiane danych? */
+      enableNotification(); /* Wlacz wymiane danych */
     }
 
-    /* Klient wysyla dane serwerowi */
+    /* Klient wysyla dane konfiguracji serwerowi */
     if(client_ready)
     {
-		if(newConfig == true){
-		  newConfig = false; //TODO: problem - wiadomosc z konfiguracja moze byc gubiona, nie sprawdzam tego! rozwiazanie - ACK?
-		  sendData(sentConfigurationMsg, sizeof(sentConfigurationMsg));
+//		static uint8_t whichServerReceivesConfiguration = 0;
+    	if(newConfig == true){
+		  newConfig = false;
+		  sendData(whichServerReceivesConfiguration, sentConfigurationMsg, sizeof(sentConfigurationMsg));
+		  whichServerReceivesConfiguration++; //TODO prymitywnie, obu serverom po jednym sensorze
 		}
-		/* Wyslij konfiguracje w odpowiednim formacie np sekwencja postaci typ sensora, adres pinu, ile bajtow danych sie spodziewamy */
-
+    	//TODO: wiadomosc z konfiguracja moze byc gubiona. rozwiazanie - ACK?
     	/* Wymiana danych dla konfiguracji zdalnej slave'a:
     	 * 1. master wysyla do slave'a info o konfiguracji w odpowiednim formacie (np. sekwencja rodzaj_sensora adres_pinu)
     	 * 2. slave przeparsuje sobie ta konfiguracje i odczyta info jakie ma sensory i na jakich pinach
@@ -316,11 +321,10 @@ static void User_Process(void)
     	 * */
     }
 
-    if (connected && end_read_tx_char_handle && end_read_rx_char_handle && notification_enabled)
+    if (all_servers_connected && all_tx_char_handles_read && all_rx_char_handles_read && all_notifications_enabled && !client_ready)
     {
     	client_ready = true;
     }
-  } /* BLE_Role == CLIENT */
 }
 
 /**

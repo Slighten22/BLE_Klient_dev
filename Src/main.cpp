@@ -29,6 +29,7 @@
 #include <string.h>
 #include <math.h>
 #include <cstdio>
+#include "sample_service.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -51,17 +52,21 @@ osThreadId askForDataTaskHandle;
 osThreadId presentationTaskHandle;
 osThreadId communicationTaskHandle;
 osMutexId uartMutexHandle;
+osMutexId newDataMutexHandle;
 xQueueHandle msgQueueHandle;
+uint16_t counter;
 uint8_t sensorObjectCount;
 uint8_t whichSensorWrites;
 uint8_t whichLoopIteration;
-uint8_t sentConfigurationMsg[20];
-uint8_t counter = 0;
-char uartData[50];
+uint8_t sentConfigurationMsg[MSG_LEN];
+uint8_t newData;
+char uartData[70];
 bool newConfig;
-bool newData;
-extern volatile int connected;
-extern volatile uint8_t client_ready;
+uint8_t dataBLE[MAX_MSGS][MSG_LEN];
+
+uint8_t whichServerReceivesConfiguration = 0;
+FoundDeviceInfo foundDevices[MAX_CONNECTIONS];
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -76,7 +81,7 @@ void PresentationTaskThread(void const * argument);
 void CommunicationTaskThread(void const * argument);
 void presentDataFromSensor(uint8_t which);
 void delayMicroseconds(uint32_t us);
-void sendNewConfig(uint8_t sensorType, uint16_t interval, uint8_t *name);
+void prepareNewConfig(uint8_t sensorType, uint16_t interval, uint8_t *name);
 bool checkIfTempSensorReadoutCorrect(uint32_t dataBits, uint8_t checksumBits);
 /* USER CODE END PFP */
 
@@ -122,6 +127,7 @@ int main(void)
   /* USER CODE BEGIN RTOS_MUTEX */
   /* add mutexes, ... */
   uartMutexHandle = xSemaphoreCreateMutex();
+  newDataMutexHandle = xSemaphoreCreateMutex();
   /* USER CODE END RTOS_MUTEX */
 
   /* USER CODE BEGIN RTOS_SEMAPHORES */
@@ -134,23 +140,23 @@ int main(void)
 
   /* USER CODE BEGIN RTOS_QUEUES */
   /* add queues, ... */
-  msgQueueHandle = xQueueCreate(5, sizeof(uartData));
+  msgQueueHandle = xQueueCreate(MAX_MSGS, sizeof(uartData));
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
   /* definition and creation of defaultTask */
-  osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 128);
+  osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 128/*256*/);
   defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
-	osThreadDef(askForDataTask, AskForDataTaskThread, osPriorityNormal, 0, 128);
+	osThreadDef(askForDataTask, AskForDataTaskThread, osPriorityNormal, 0, 128/*256*/);
 	askForDataTaskHandle = osThreadCreate(osThread(askForDataTask), NULL);
 
-	osThreadDef(presentationTask, PresentationTaskThread, osPriorityNormal, 0, 128);
+	osThreadDef(presentationTask, PresentationTaskThread, osPriorityNormal, 0, /*128*/512);
 	presentationTaskHandle = osThreadCreate(osThread(presentationTask), NULL);
 
-	osThreadDef(communicationTask, CommunicationTaskThread, osPriorityLow, 0, 128);
+	osThreadDef(communicationTask, CommunicationTaskThread, osPriorityLow, 0, 128/*256*/);
 	communicationTaskHandle = osThreadCreate(osThread(communicationTask), NULL);
   /* USER CODE END RTOS_THREADS */
 
@@ -240,7 +246,10 @@ static void MX_USART3_UART_Init(void)
 
   /* USER CODE END USART3_Init 1 */
   huart3.Instance = USART3;
+
+  //dla RPi
   huart3.Init.BaudRate = 115200;
+//  huart3.Init.BaudRate = 9600;
   huart3.Init.WordLength = UART_WORDLENGTH_8B;
   huart3.Init.StopBits = UART_STOPBITS_1;
   huart3.Init.Parity = UART_PARITY_NONE;
@@ -329,7 +338,10 @@ void StartDefaultTask(void const * argument)
 	  else {
 	  	  MX_BlueNRG_MS_Process();
 	  }
-	  osDelay(delayTime);
+
+	  //
+	  //osDelay(DELAY_TIME/30); //wlaczenie delaya na 100 milisek. powoduje wypisywanie smieci w terminalu - czemu?
+
   }
   /* USER CODE END 5 */ 
 }
@@ -345,22 +357,28 @@ void AskForDataTaskThread(void const * argument)
 		xTaskNotifyWait(pdFALSE, 0xFF, &notifValue, portMAX_DELAY);
 		if((notifValue&0x01) != 0x00) //Sprawdza czy notifValue zawiera wartosc ktora wyslal task supervisora
 		{
-		  //TODO: Na razie wersja z jednym serverem, prymitywne wyslanie danych konfiguracji (docelowo bedzie do tego interfejs)
-		  if(counter == 0){
-			  sendNewConfig(DHT22, 4, (uint8_t *)"Pokoj1");
+		  //prymitywne wyslanie danych konfiguracji (docelowo bedzie do tego interfejs). chyba juz tu powinno byc wskazane do ktorego servera ma trafic konf.
+		  //!zwrocic uwage na delay glownego taska i wartosc countera!
+		  if(counter == /*0*/UINT16_MAX/16){
+			  prepareNewConfig(DHT22, 4, (uint8_t *)"Pokoj");
 		  }
-		  if(counter == 4){
-			  sendNewConfig(DHT22, 4, (uint8_t *)"Kuchnia1");
+		  if(counter == /*4*/UINT16_MAX/8){
+			  prepareNewConfig(DHT22, 5, (uint8_t *)"Kuchnia");
 		  }
-		  counter++;
+		  //uwazac zeby tylko raz wysylac pozadana konfiguracje - a nie w petli co przepelnienie wartosci countera!
+		  if(counter <= UINT16_MAX/8){
+			  counter++;
+		  }
 
 	      MX_BlueNRG_MS_Process();
 
-	      if(newData == true){ //uruchom task prezentacji tylko wtedy, gdy przyjda nowe dane
-	    	  newData = false;
-	    	  //Wyslij sygnal do taska od prezentacji ze powinien teraz sie uruchomic
+	      //!
+	      xSemaphoreTake(newDataMutexHandle, DELAY_TIME);
+	      if(newData){ //uruchom task prezentacji tylko wtedy, gdy przyjda nowe dane
+	       	  //Wyslij sygnal do taska od prezentacji ze powinien teraz sie uruchomic
 	    	  xTaskNotify(presentationTaskHandle, 0x02, eSetBits);
 	      }
+	      xSemaphoreGive(newDataMutexHandle);
 		}
 	}
 }
@@ -377,37 +395,99 @@ void PresentationTaskThread(void const * argument)
 		if((notifValue&0x02) != 0x00) //Sprawdza czy notifValue zawiera wartosc ktora wyslal task odczytu
 		{
 			//Format: nazwa_czujnika '\0' dane
-			char name[MAX_NAME_LEN]; int i=0;
+			char name[MAX_NAME_LEN]; char deviceName[MAX_NAME_LEN]; int i;
 			memset(name, 0x00, sizeof(name));
-			for(i=0; dataBLE[i] != '\0' && i<MAX_NAME_LEN; i++){
-				name[i] = dataBLE[i];
+			memset(deviceName, 0x00, sizeof(deviceName));
+			//
+			xSemaphoreTake(newDataMutexHandle, DELAY_TIME);
+			while(newData){
+				newData--;
+				for(i=0; dataBLE[newData][i] != '\0' && i<MAX_NAME_LEN; i++){
+					name[i] = dataBLE[newData][i];
+				}
+				uint32_t dataBits = (dataBLE[newData][i+1] << 24) + (dataBLE[newData][i+2] << 16)
+								  + (dataBLE[newData][i+3] << 8)  + (dataBLE[newData][i+4]);
+				uint8_t checksumBits = dataBLE[newData][i+5];
+				if(checkIfTempSensorReadoutCorrect(dataBits, checksumBits)){
+					//znajdz (przez connHandle - 2 ost. bajty w dataBLE[]) odp. urzadzenie, znajdz odp. czujnik
+					//i zaktualizuj odczytane wartosci, wypisz cale drzewo klienta (wszystkie polaczone urz. i ich wszystkie sensory)
+					uint16_t connHandle = (dataBLE[newData][i+6] << 8) | dataBLE[newData][i+7];
+					for(int k=0; k<foundDevicesCount; k++){
+						if(connHandle == foundDevices[k].connHandle){ //znajdz odp. urzadzenie
+							for(int m=0; foundDevices[k].deviceName[m] != '\0' && m<MAX_NAME_LEN; m++){
+								deviceName[m] = foundDevices[k].deviceName[m];
+							}
+							for(int m=0; m<foundDevices[k].connSensorsCount; m++){ //znajdz odp. czujnik
+								if(strcmp((char *)name, (char *)foundDevices[k].connSensors[m].sensorName) == 0){
+									//aktualizuj odczytane wartosci czujnika
+									foundDevices[k].connSensors[m].lastHumidValue
+//										= ((dataBLE[newData][i+1] << 8) | dataBLE[newData][i+2]) / (uint16_t)10;
+										= ((float)((dataBLE[newData][i+1] << 8) | dataBLE[newData][i+2])) / (float)10.0;
+									foundDevices[k].connSensors[m].lastTempValue
+//										= ((dataBLE[newData][i+3] << 8) | dataBLE[newData][i+4]) / (uint16_t)10;
+										= ((float)((dataBLE[newData][i+3] << 8) | dataBLE[newData][i+4])) / (float)10.0;
+								}
+							}
+						}
+					}
+					//wypisz cale drzewo klienta
+					printf("=====\r\nPolaczone urzadzenia:\r\n\r\n");
+					for(int k=0; k<foundDevicesCount; k++){
+						printf("%d. Urzadzenie %s\r\n", k+1, foundDevices[k].deviceName);
+						for(int m=0; m<foundDevices[k].connSensorsCount; m++){
+							printf("Czujnik %s\r\n", foundDevices[k].connSensors[m].sensorName);
+							uint16_t humid = (uint16_t)foundDevices[k].connSensors[m].lastHumidValue;
+							uint16_t temp  = (uint16_t)foundDevices[k].connSensors[m].lastTempValue;
+							uint16_t humidDecimal = ((int)(foundDevices[k].connSensors[m].lastHumidValue*10))%10;
+							uint16_t tempDecimal  = ((int)(foundDevices[k].connSensors[m].lastTempValue*10))%10;
+							printf("Temperatura\t %hu.%huC\r\n", temp, tempDecimal);
+							printf("Wilgotnosc\t %hu.%hu%%\r\n\r\n", humid, humidDecimal);
+						}
+					}
+
+					//Wypisanie odczytu "po staremu"
+//					uint16_t humid = (dataBLE[newData][i+1] << 8) | dataBLE[newData][i+2];
+//					uint16_t temp  = (dataBLE[newData][i+3] << 8) | dataBLE[newData][i+4];
+//					uint16_t humidDecimal = humid%10;
+//					uint16_t tempDecimal  = temp%10;
+//					temp = temp/(uint16_t)10;
+//					humid= humid/(uint16_t)10;
+//					//xQueueSend(msgQueueHandle, (uint8_t *)uartData, 100);
+//					printf("\r\nCzujnik %s\r\n", name);
+//
+//					memset(uartData, 0x0, sizeof(uartData));
+//					sprintf(uartData, "\r\nCzujnik %s\r\n", name);
+//					HAL_UART_Transmit(&huart3, (uint8_t *)uartData,
+//							sizeof("\r\nCzujnik %s\r\n")+sizeof(name), 10);
+//
+//					printf("Temperatura\t %hu.%huC\r\nWilgotnosc\t %hu.%hu%%\r\n",
+//							  temp, tempDecimal, humid, humidDecimal);
+//
+////					memset(uartData, 0x0, sizeof(uartData));
+//					sprintf(uartData, "Temperatura\t %hu.%huC\r\n", temp, tempDecimal);
+//					HAL_UART_Transmit(&huart3, (uint8_t *)uartData,
+//							sizeof("Temperatura\t %hu.%huC\r\n")+2*sizeof(uint16_t), 10);
+//
+////					memset(uartData, 0x0, sizeof(uartData));
+//					sprintf(uartData, "Wilgotnosc\t %hu.%hu%%\r\n", humid, humidDecimal);
+//					HAL_UART_Transmit(&huart3, (uint8_t *)uartData,
+//							sizeof("Wilgotnosc\t %hu.%hu%%\r\n")+2*sizeof(uint16_t), 10);
+				}
 			}
-			printf("\r\nCzujnik %s\r\n", name);
-			uint32_t dataBits = (dataBLE[i+1] << 24) + (dataBLE[i+2] << 16) + (dataBLE[i+3] << 8) + (dataBLE[i+4]);
-			uint8_t checksumBits = dataBLE[i+5];
-			if(checkIfTempSensorReadoutCorrect(dataBits, checksumBits)){
-				uint16_t humid = (dataBLE[i+1] << 8) | dataBLE[i+2];
-				uint16_t temp  = (dataBLE[i+3] << 8) | dataBLE[i+4];
-				uint16_t humidDecimal = humid%10;
-				uint16_t tempDecimal  = temp%10;
-				temp = temp/(uint16_t)10;
-				humid= humid/(uint16_t)10;
-				//xQueueSend(msgQueueHandle, (uint8_t *)uartData, 100);
-				printf("Temperatura\t %hu.%huC\r\nWilgotnosc\t %hu.%hu%%\r\n",
-						  temp, tempDecimal, humid, humidDecimal);
-			}
+			xSemaphoreGive(newDataMutexHandle);
 		}
 	}
 }
 
+//
 void CommunicationTaskThread(void const * argument)
 {
 	char receivedData[50];
 	/* Infinite loop */
 	for(;;)
 	{
-		xQueueReceive(msgQueueHandle, receivedData, delayTime); //delayTime?
-		xSemaphoreTake(uartMutexHandle, delayTime); //delayTime?
+		xQueueReceive(msgQueueHandle, receivedData, DELAY_TIME); //delayTime?
+		xSemaphoreTake(uartMutexHandle, DELAY_TIME); //delayTime?
 		printf(receivedData);
 		xSemaphoreGive(uartMutexHandle);
 	}
@@ -428,15 +508,15 @@ void delayMicroseconds(uint32_t us){
 	//UINT_MAX	Maximum value for a variable of type unsigned int	4,294,967,295 (0xffffffff)
 }
 
-void sendNewConfig(uint8_t sensorType, uint16_t interval, uint8_t *name){
+void prepareNewConfig(uint8_t sensorType, uint16_t interval, uint8_t *name){
 	/* Format wiadomosci: <typ_sensora:1B> <interwal:2B> <nazwa:max.14B> */
-	for(int i=0; i<MSG_LEN; i++){
+	int i=0;
+	for(i=0; i<MSG_LEN; i++){
 		sentConfigurationMsg[i] = '\0';
 	}
 	sentConfigurationMsg[0] = sensorType;
 	sentConfigurationMsg[1] = interval/256;
 	sentConfigurationMsg[2] = interval%256;
-	int i = 0;
 	for(i=3; name[i-3] != '\0' && i<MSG_LEN; i++){
 		sentConfigurationMsg[i] = name[i-3];
 	}
@@ -444,6 +524,17 @@ void sendNewConfig(uint8_t sensorType, uint16_t interval, uint8_t *name){
 		sentConfigurationMsg[i] = '\0';
 	}
 	newConfig = true;
+
+
+	//wpisywanie do foundDevices informacji o nowo wyslanym czujniku TODO wysylka do konkretnego servera
+    uint8_t connSensorsCnt = foundDevices[whichServerReceivesConfiguration].connSensorsCount;
+	memcpy(foundDevices[whichServerReceivesConfiguration].connSensors[connSensorsCnt].sensorName, name, i-3);
+	foundDevices[whichServerReceivesConfiguration].connSensors[connSensorsCnt].lastTempValue = 0.0F;
+	foundDevices[whichServerReceivesConfiguration].connSensors[connSensorsCnt].lastHumidValue = 0.0F;
+	foundDevices[whichServerReceivesConfiguration].connSensorsCount++;
+	//foundDevices[whichServerReceivesConfiguration].connSensors[connSensorsCnt].sensorName[i]
+
+
 }
 
 bool checkIfTempSensorReadoutCorrect(uint32_t dataBits, uint8_t checksumBits){
