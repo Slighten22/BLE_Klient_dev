@@ -35,15 +35,14 @@
   ******************************************************************************
   */
 /* Includes ------------------------------------------------------------------*/
+#include "main.h"
 #include "sample_service.h"
 #include "bluenrg_gap_aci.h"
 #include "bluenrg_gatt_aci.h"
 #include "bluenrg_hal_aci.h"
-
-#include "app_x-cube-ble1.h"
-#include "cmsis_os.h"
 #include <stdbool.h>
 
+/* Private defines */
 #define MAX_CONNECTIONS 8 //Mode 3: master/slave, max. 8 connections
 
 /** @addtogroup Applications
@@ -62,49 +61,62 @@
  * @{
  */
 /* Private variables ---------------------------------------------------------*/
-volatile uint16_t connectionHandles[MAX_CONNECTIONS];
+//volatile uint16_t connectionHandles[MAX_CONNECTIONS];
 volatile uint8_t connectedDevicesCount = 0;
-volatile uint8_t set_connectable = 1;
-volatile uint8_t client_ready = FALSE;
-volatile uint8_t discovery_started = FALSE;
-volatile uint8_t discovery_finished = FALSE;
-volatile bool all_servers_connected = FALSE;
-volatile bool services_discovered = FALSE;
-
-evt_att_read_by_group_resp *resp; //TODO potrzebna jako globalna tylko do debugowania
-uint8_t tmp[13]; //jak wyzej
-volatile uint8_t start_notifications_enable = FALSE;
-volatile uint8_t all_notifications_enabled = FALSE;
-volatile uint8_t start_read_tx_char_handle = FALSE;//?
-volatile uint8_t start_read_rx_char_handle = FALSE;//?
-volatile uint8_t all_tx_char_handles_read = FALSE;
-volatile uint8_t all_rx_char_handles_read = FALSE;
+volatile bool set_connectable = true;
+volatile bool client_ready = false;
+volatile bool discovery_started = false;
+volatile bool discovery_finished = false;
+volatile bool start_notifications_enable = false;
+volatile bool all_notifications_enabled = false;
+volatile bool start_read_tx_char_handle = false;//?
+volatile bool start_read_rx_char_handle = false;//?
+volatile bool all_tx_char_handles_read = false;
+volatile bool all_rx_char_handles_read = false;
+volatile bool all_servers_connected = false;
+volatile bool services_discovered = false;
 /* Klient zna handle do charakterystyk serverow */
 uint16_t txHandles[MAX_CONNECTIONS];
 uint8_t txHandlesDiscoveredCount = 0;
 uint16_t rxHandles[MAX_CONNECTIONS];
 uint8_t rxHandlesDiscoveredCount = 0;
 uint8_t notifications_enabled_count = 0;
-uint16_t sampleServHandle, TXCharHandle, RXCharHandle; /* Server zna handle do swojego serwisu i swoich charakterystyk */
-
+/* Server zna handle do swojego serwisu i swoich charakterystyk */
+uint16_t sampleServHandle, TXCharHandle, RXCharHandle;
 extern uint8_t bnrg_expansion_board;
-extern BLE_RoleTypeDef BLE_Role;
-extern uint8_t dataBLE[][MSG_LEN];
-extern uint8_t newData;
-extern bool newDataPresent;
-extern osMutexId newDataMutexHandle;
 extern uint8_t whichLoopIteration;
 extern uint8_t whichServerConnecting;
-//skanowanie serverow przez klienta
+extern uint8_t dataBLE[][MSG_LEN];
+extern uint8_t newData;
+extern BLE_RoleTypeDef BLE_Role;
+extern osMutexId newDataMutexHandle;
+extern bool newDataPresent;
+
+/* Dla "drzewa" urzadzen pamietanego przez klienta */
+typedef struct ConnectedSensor {
+	uint8_t sensorName[MAX_NAME_LEN];
+ 	float lastTempValue;
+ 	float lastHumidValue;
+} ConnectedSensor;
+/* Skanowanie serverow przez klienta */
+typedef enum {
+	DISCONNECTED,
+ 	READY_TO_CONNECT,
+ 	CONNECTED
+} ConnectionStatus;
 typedef struct FoundDeviceInfo {
-	uint8_t deviceAddressType;
-	tBDAddr deviceAddress;
+ 	uint8_t deviceAddressType;
+ 	tBDAddr deviceAddress;
+ 	uint8_t deviceName[MAX_NAME_LEN];
+ 	ConnectionStatus connStatus;
+ 	uint16_t connHandle;
+ 	//
+ 	uint8_t connSensorsCount;
+ 	ConnectedSensor connSensors[/*MAX_CONN_SENSORS*/MAX_CONNECTIONS]; //moze bardziej vector?
 } FoundDeviceInfo;
 FoundDeviceInfo foundDevices[MAX_CONNECTIONS];
 uint8_t foundDevicesCount = 0;
 
-//
-//uint8_t deviceName[4]; //lokalna wewnatrz GAP_AdvertisingReport_CB()
 
 /**
  * @}
@@ -179,22 +191,22 @@ void Make_Connection(void)
     tBleStatus ret;
     BSP_LED_On(LED2); //To indicate the start of the connection and discovery phase
 
-	printf("Client Create Connection with device %d\r\n", connectedDevicesCount+1);
+	printf("Client Create Connection with device %d\r\n\r\n", connectedDevicesCount+1);
 	ret = aci_gap_create_connection(
-			SCAN_P/*0x0010*/, /* 10240 msec = Scan Interval: from when the Controller started its last scan until it begins the subsequent scan = how long to wait between scans (for a number N, Time = N x 0.625 msec) */
-			SCAN_L/*0x0010*/, /* 10240 msec = Scan Window: amount of time for the duration of the LE scan = how long to scan (for a number N, Time = N x 0.625 msec) */
-			foundDevices[connectedDevicesCount].deviceAddressType, /* Peer_Address_Type */
-			foundDevices[connectedDevicesCount].deviceAddress, /* Peer_Address */
-			PUBLIC_ADDR, /* Own_Address_Type */
-			CONN_P1/*0x06C*/, /* 50 msec = Minimum Connection Period (interval) = time between two data transfer events (for a number N, Time = N x 1.25 msec) */
-			CONN_P2/*0x06C*/, /* 50 msec = Maximum Connection Period (interval) = Connection interval is the time between one radio event on a given connection and the next radio event on the same connection (for a number N, Time = N x 1.25 msec) */
-			0x0000, /* Connection latency = If non-zero, the peripheral is allowed to skip up to slave latency radio events and not listen. That saves even more power, at the expense of even slower data. number of consecutive connection events where the slave doesn't need to listen on the master(?) */
-			SUPERV_TIMEOUT/*0x0C80*/, /* 600 msec = Supervision Timeout (reset upon reception of a valid packet) max time between 2 packets before connection is considered lost (Time = N x 10 msec) */
-			/*CONN_L1*/0x000C, /* 7.5 msec (previously 1250 msec and not working) = Minimum Connection Length (for a number N, Time = N x 0.625 msec) */
-			/*CONN_L2*/0x000C  /* 7.5 msec (previously 1250 msec and not working) = Maximal Connection Length (for a number N, Time = N x 0.625 msec) */
+		SCAN_P/*0x0010*/, /* 10240 msec = Scan Interval: from when the Controller started its last scan until it begins the subsequent scan = how long to wait between scans (for a number N, Time = N x 0.625 msec) */
+		SCAN_L/*0x0010*/, /* 10240 msec = Scan Window: amount of time for the duration of the LE scan = how long to scan (for a number N, Time = N x 0.625 msec) */
+		foundDevices[connectedDevicesCount].deviceAddressType, /* Peer_Address_Type */
+		foundDevices[connectedDevicesCount].deviceAddress, /* Peer_Address */
+		PUBLIC_ADDR, /* Own_Address_Type */
+		CONN_P1/*0x06C*/, /* 50 msec = Minimum Connection Period (interval) = time between two data transfer events (for a number N, Time = N x 1.25 msec) */
+		CONN_P2/*0x06C*/, /* 50 msec = Maximum Connection Period (interval) = Connection interval is the time between one radio event on a given connection and the next radio event on the same connection (for a number N, Time = N x 1.25 msec) */
+		0x0000, /* Connection latency = If non-zero, the peripheral is allowed to skip up to slave latency radio events and not listen. That saves even more power, at the expense of even slower data. number of consecutive connection events where the slave doesn't need to listen on the master(?) */
+		SUPERV_TIMEOUT/*0x0C80*/, /* 600 msec = Supervision Timeout (reset upon reception of a valid packet) max time between 2 packets before connection is considered lost (Time = N x 10 msec) */
+		/*CONN_L1*/0x000C, /* 7.5 msec (previously 1250 msec and not working) = Minimum Connection Length (for a number N, Time = N x 0.625 msec) */
+		/*CONN_L2*/0x000C  /* 7.5 msec (previously 1250 msec and not working) = Maximal Connection Length (for a number N, Time = N x 0.625 msec) */
 	);
 	if (ret != BLE_STATUS_SUCCESS){
-	  printf("Error while starting connection with device %d\r\n", connectedDevicesCount);
+	  printf("Error while starting connection with device %d\r\n\r\n", connectedDevicesCount);
 	}
 }
 
@@ -210,7 +222,7 @@ void startReadTXCharHandle(void)
     PRINTF("Start reading TX Char Handle\n");
     start_read_tx_char_handle = TRUE;
 	const uint8_t charUuid128_TX[16] = {0x66,0x9a,0x0c,0x20,0x00,0x08,0x96,0x9e,0xe2,0x11,0x9e,0xb1,0xe1,0xf2,0x73,0xd9};
-    aci_gatt_disc_charac_by_uuid(connectionHandles[txHandlesDiscoveredCount], 0x0001, 0xFFFF, UUID_TYPE_128, charUuid128_TX);
+    aci_gatt_disc_charac_by_uuid(foundDevices[txHandlesDiscoveredCount].connHandle, 0x0001, 0xFFFF, UUID_TYPE_128, charUuid128_TX);
   }
 }
 
@@ -226,7 +238,7 @@ void startReadRXCharHandle(void)
     PRINTF("Start reading RX Char Handle\n");
     start_read_rx_char_handle = TRUE;
     const uint8_t charUuid128_RX[16] = {0x66,0x9a,0x0c,0x20,0x00,0x08,0x96,0x9e,0xe2,0x11,0x9e,0xb1,0xe2,0xf2,0x73,0xd9};
-    aci_gatt_disc_charac_by_uuid(connectionHandles[rxHandlesDiscoveredCount], 0x0001, 0xFFFF, UUID_TYPE_128, charUuid128_RX);
+    aci_gatt_disc_charac_by_uuid(foundDevices[rxHandlesDiscoveredCount].connHandle, 0x0001, 0xFFFF, UUID_TYPE_128, charUuid128_RX);
   }
 }
 
@@ -240,11 +252,9 @@ void startReadRXCharHandle(void)
 void receiveData(uint8_t* data_buffer, uint8_t Nb_bytes)
 {
   BSP_LED_Off(LED2);
-
   for(int i = 0; i < Nb_bytes; i++) {
 	  printf("%c", data_buffer[i]);
-  } //obudowac do wysylania
-  // tu moze byc obudowa uartowa/samo wysylanie wartosci temp i wilgotnosci
+  }
   fflush(stdout);
 }
 
@@ -259,8 +269,9 @@ void receiveData(uint8_t* data_buffer, uint8_t Nb_bytes)
 //void sendData(uint8_t* data_buffer, uint8_t Nb_bytes)
 void sendData(uint8_t server_index, uint8_t* data_buffer, uint8_t Nb_bytes)
 {
-	/* Klient do serwera */
-    aci_gatt_write_without_response(connectionHandles[server_index], rxHandles[server_index]+1, Nb_bytes, data_buffer); /* Max 20 bajtow na jedno wywolanie funkcji, serwer nie potwierdza otrzymania pakietu */
+	/* Klient wysyla dane do serwera */
+	uint8_t server_ind = (server_index <= connectedDevicesCount ? server_index : connectedDevicesCount); /* Aby wyslac do polaczonego servera */
+    aci_gatt_write_without_response(foundDevices[server_ind].connHandle, rxHandles[server_ind]+1, Nb_bytes, data_buffer); /* Max 20 bajtow na jedno wywolanie funkcji, serwer nie potwierdza otrzymania pakietu */
 	//aci_gatt_write_charac_value(connection_handle, rx_handle+1, Nb_bytes, data_buffer); /* The client provides a handle and the contents of the value (up to ATT_MTU-3 bytes, because the handle and the ATT operation code are included in the packet with the data) and the server will !acknowledge the write operation with a response! */
 	//aci_gatt_write_long_charac_val(connection_handle, rx_handle+1, 0, Nb_bytes, data_buffer); /* This permits a client to write more than ATT_MTU-3 bytes of data into a server’s characteristic value or descriptor. It works by queueing several prepare write operations, each of which includes an offset and the data itself, and then finally writing them all atomically with an execute write operation. */
 }
@@ -277,7 +288,7 @@ void enableNotification(void)
   uint32_t tickstart = HAL_GetTick();
   
   while(notifications_enabled_count < connectedDevicesCount){
-	  while(aci_gatt_write_charac_descriptor(connectionHandles[notifications_enabled_count], txHandles[notifications_enabled_count]+2, 2, client_char_conf_data)==BLE_STATUS_NOT_ALLOWED){ /* ? */
+	  while(aci_gatt_write_charac_descriptor(foundDevices[notifications_enabled_count].connHandle, txHandles[notifications_enabled_count]+2, 2, client_char_conf_data)==BLE_STATUS_NOT_ALLOWED){ /* ? */
 		/* Radio is busy */
 		if ((HAL_GetTick() - tickstart) > (10*HCI_DEFAULT_TIMEOUT_MS)) break;
 	  }
@@ -285,7 +296,7 @@ void enableNotification(void)
   }
   start_notifications_enable = TRUE;
   all_notifications_enabled = TRUE; //?
-  printf("All notifications enabled!\r\n");
+  printf("All notifications enabled!\r\nReady to exchange data!\r\n\r\n");
 }
 
 /**
@@ -302,7 +313,6 @@ void Attribute_Modified_CB(uint16_t handle, uint8_t data_length, uint8_t *att_da
   } else if (handle == TXCharHandle + 2) {        
     if(att_data[0] == 0x01)
     	start_notifications_enable = TRUE; //?
-//      notification_enabled = TRUE;
   }
 }
 
@@ -314,21 +324,21 @@ void Attribute_Modified_CB(uint16_t handle, uint8_t data_length, uint8_t *att_da
  */
 void GAP_ConnectionComplete_CB(uint8_t addr[6], uint16_t handle)
 {  
-//  connected = TRUE;
-  connectionHandles[connectedDevicesCount] = handle;
+  foundDevices[connectedDevicesCount].connHandle = handle;
+  foundDevices[connectedDevicesCount].connStatus = CONNECTED;
   connectedDevicesCount++;
   printf("Connected to device: ");
   for(int i = 5; i > 0; i--){
     printf("%02X-", addr[i]);
   }
-  printf("%02X\r\n", addr[0]);
-  printf("Connection handle: %04X\r\n", handle);
+  printf("%02X\r\n\r\n", addr[0]);
+  printf("Connection handle: %04X\r\n\r\n", handle);
   if(connectedDevicesCount < foundDevicesCount){
 	  Make_Connection();
   }
   else if(connectedDevicesCount == foundDevicesCount){
 	  all_servers_connected = TRUE;
-	  printf("All found devices connected\r\n");
+	  printf("All found devices connected!\r\n\r\n");
   }
 }
 
@@ -342,13 +352,15 @@ void GAP_DisconnectionComplete_CB(void)
   all_servers_connected = FALSE;
   
   printf("Disconnected\n");
+
+  //TODO: przemyslec zachowanie klienta po rozlaczeniu polaczenia!
   /* Make the device connectable again. */
-  set_connectable = TRUE;
-  start_notifications_enable = FALSE;
-  start_read_tx_char_handle = FALSE;
-  start_read_rx_char_handle = FALSE;
-  all_tx_char_handles_read = FALSE;
-  all_rx_char_handles_read = FALSE;
+//  set_connectable = TRUE;
+//  start_notifications_enable = FALSE;
+//  start_read_tx_char_handle = FALSE;
+//  start_read_rx_char_handle = FALSE;
+//  all_tx_char_handles_read = FALSE;
+//  all_rx_char_handles_read = FALSE;
 }
 
 /**
@@ -361,7 +373,7 @@ void GAP_DisconnectionComplete_CB(void)
 void GATT_Notification_CB(uint16_t attr_handle, uint8_t attr_len, uint8_t *attr_value)
 {
 	/* !Odebrane dane od servera! */
-    if (attr_handle == txHandles[txHandlesDiscoveredCount-1]+1 && attr_len != 0 && *attr_value != '\0') { //TODO check txHandles[txHandlesDiscoveredCount]
+    if (attr_handle == txHandles[txHandlesDiscoveredCount-1]+1 && attr_len != 0 && *attr_value != '\0') { //TODO check txHandles[txHandlesDiscoveredCount] -> wszystkie handle sa takie same, rozrozniac urzadzenia mozna po pozycji w connectionHandles[] i po adresie z foundDevices[]
     	xSemaphoreTake(newDataMutexHandle, DELAY_TIME);
     	memset((char *)dataBLE[newData], '\0', MSG_LEN);
     	for(int i=0; i<=attr_len && i<=MSG_LEN; i++){
@@ -380,6 +392,7 @@ void GATT_Notification_CB(uint16_t attr_handle, uint8_t attr_len, uint8_t *attr_
  * @retval None
  */
 void GAP_AdvertisingReport_CB(le_advertising_info *adv_info){
+	//TODO kopiowanie nazwy!
 	char deviceName[] = "name";
 	//nazwa - zaczyna sie od bitu o ind. 6, 'test' ma 4 znaki
 	memcpy(deviceName, adv_info->data_RSSI+6, 4);
@@ -395,10 +408,13 @@ void GAP_AdvertisingReport_CB(le_advertising_info *adv_info){
 		  }
 	  }
 	  if(isDeviceNew){
-		  printf("\r\nNew device found!\r\n");
+		  printf("New device found!\r\n\r\n");
 		  //dodac nowo znalezione urzadzenie do tablicy pamietanych urzadzen, zwiekszyc liczbe pamietanych urzadzen
 		  foundDevices[foundDevicesCount].deviceAddressType = adv_info->bdaddr_type;
 		  memcpy(foundDevices[foundDevicesCount].deviceAddress, adv_info->bdaddr+1, BD_ADDR_SIZE);
+		  //nazwa i status
+		  memcpy(foundDevices[foundDevicesCount].deviceName, adv_info->data_RSSI+6, 4); //TODO nazwa moze byc rozna niz test!!!
+		  foundDevices[foundDevicesCount].connStatus = READY_TO_CONNECT;
 		  if(foundDevicesCount+1<MAX_CONNECTIONS){
 			  foundDevicesCount++;
 		  }
@@ -427,6 +443,7 @@ void user_notify(void * pData) /* Parsowanie otrzymanego eventu */
 	  /* Disconnection */
 	  case EVT_DISCONN_COMPLETE:
 		{
+		  //TODO: po rozlaczeniu: odpowiedni komunikat, zmiana statusu odp. polaczenia na DISCCONNECTED i ew. ponowne wyszukiwanie
 		  GAP_DisconnectionComplete_CB();
 		}
 		break;
@@ -462,7 +479,7 @@ void user_notify(void * pData) /* Parsowanie otrzymanego eventu */
 		  evt_blue_aci *blue_evt = (void*)event_pckt->data;
 		  switch(blue_evt->ecode){
 
-			  /* Attribute modified (zmieniaja sie handle TX i RX) */
+			  /* Attribute modified (zmieniaja sie handle TX i RX) - server odbiera dane */
 			  case EVT_BLUE_GATT_ATTRIBUTE_MODIFIED:
 				{
 				  if (bnrg_expansion_board == IDB05A1) {
@@ -481,6 +498,7 @@ void user_notify(void * pData) /* Parsowanie otrzymanego eventu */
 			  case EVT_BLUE_GATT_NOTIFICATION:
 				{
 				  evt_gatt_attr_notification *evt = (evt_gatt_attr_notification*)blue_evt->data;
+				  /* mozna jeszcze wykorzystac handle do polaczenia, ktory przychodzi razem z pakietem */
 				  GATT_Notification_CB(evt->attr_handle, evt->event_data_length - 2, evt->attr_value);
 				  /* a w callbacku odbior otrzymanych danych do jakiejs tablicy */
 				}
@@ -497,13 +515,13 @@ void user_notify(void * pData) /* Parsowanie otrzymanego eventu */
 				  if (start_read_tx_char_handle && !all_tx_char_handles_read)
 				  {
 					txHandles[txHandlesDiscoveredCount] = resp->attr_handle;
-					printf("TX Char Handle %04X\r\n", txHandles[txHandlesDiscoveredCount]);
+					printf("TX Char Handle %04X\r\n\r\n", txHandles[txHandlesDiscoveredCount]);
 					//dalej (sprawdzenie czy to juz wszystkie ch-tyki TX) juz w EVT_BLUE_GATT_PROCEDURE_COMPLETE
 				  }
 				  if (start_read_rx_char_handle && !all_rx_char_handles_read)
 				  {
 					rxHandles[rxHandlesDiscoveredCount] = resp->attr_handle;
-					printf("RX Char Handle %04X\r\n", rxHandles[rxHandlesDiscoveredCount]);
+					printf("RX Char Handle %04X\r\n\r\n", rxHandles[rxHandlesDiscoveredCount]);
 					//dalej (sprawdzenie czy to juz wszystkie ch-tyki RX) juz w EVT_BLUE_GATT_PROCEDURE_COMPLETE
 				  }
 				}
@@ -516,13 +534,13 @@ void user_notify(void * pData) /* Parsowanie otrzymanego eventu */
 				  evt_gatt_procedure_complete *evt = (void *)blue_evt->data;
 				  //chyba tylko przez wartosci zmiennych globalnych da sie ustalic co sie stalo, tak jak nizej
 				  if(evt->error_code == BLE_STATUS_SUCCESS){
-//					  printf("EVT_BLUE_GATT_PROCEDURE_COMPLETE\r\n"); //jaka dokladnie procedura? trzeba sprawdzac po zmiennych glob.!
+					  //printf("EVT_BLUE_GATT_PROCEDURE_COMPLETE\r\n"); //jaka dokladnie procedura? trzeba sprawdzac po zmiennych glob.!
 					  if (start_read_tx_char_handle && !all_tx_char_handles_read)
 					  {
 						txHandlesDiscoveredCount++;
 						if(txHandlesDiscoveredCount == connectedDevicesCount){
 							all_tx_char_handles_read = TRUE;
-							printf("All TX handles read!\r\n");
+							printf("All TX handles read!\r\n\r\n");
 						}
 						else if(txHandlesDiscoveredCount < connectedDevicesCount){
 							startReadTXCharHandle();
@@ -533,7 +551,7 @@ void user_notify(void * pData) /* Parsowanie otrzymanego eventu */
 						rxHandlesDiscoveredCount++;
 						if(rxHandlesDiscoveredCount == connectedDevicesCount){
 							all_rx_char_handles_read = TRUE;
-							printf("All RX handles read!\r\n");
+							printf("All RX handles read!\r\n\r\n");
 						}
 						else if(rxHandlesDiscoveredCount < connectedDevicesCount){
 							startReadRXCharHandle();
@@ -548,7 +566,7 @@ void user_notify(void * pData) /* Parsowanie otrzymanego eventu */
 			  {
 				  evt_gap_procedure_complete *evt = (evt_gap_procedure_complete *)blue_evt->data;
 				  if(evt->procedure_code == GAP_GENERAL_DISCOVERY_PROC && evt->status == BLE_STATUS_SUCCESS){
-					  printf("\r\nScanning for servers finished\r\n");
+					  printf("Scanning for devices finished\r\n\r\n");
 					  discovery_finished = TRUE;
 				  }
 			  }

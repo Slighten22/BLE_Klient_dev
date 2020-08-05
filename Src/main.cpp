@@ -59,7 +59,7 @@ uint8_t whichSensorWrites;
 uint8_t whichLoopIteration;
 uint8_t sentConfigurationMsg[20];
 uint8_t newData;
-char uartData[50];
+char uartData[70];
 bool newConfig;
 extern volatile bool all_servers_connected;
 extern volatile bool client_ready;
@@ -242,7 +242,10 @@ static void MX_USART3_UART_Init(void)
 
   /* USER CODE END USART3_Init 1 */
   huart3.Instance = USART3;
+
+  //dla RPi
   huart3.Init.BaudRate = 115200;
+//  huart3.Init.BaudRate = 9600;
   huart3.Init.WordLength = UART_WORDLENGTH_8B;
   huart3.Init.StopBits = UART_STOPBITS_1;
   huart3.Init.Parity = UART_PARITY_NONE;
@@ -350,8 +353,7 @@ void AskForDataTaskThread(void const * argument)
 		xTaskNotifyWait(pdFALSE, 0xFF, &notifValue, portMAX_DELAY);
 		if((notifValue&0x01) != 0x00) //Sprawdza czy notifValue zawiera wartosc ktora wyslal task supervisora
 		{
-		  //
-		  //prymitywne wyslanie danych konfiguracji (docelowo bedzie do tego interfejs)
+		  //prymitywne wyslanie danych konfiguracji (docelowo bedzie do tego interfejs). chyba juz tu powinno byc wskazane do ktorego servera ma trafic konf.
 		  //!zwrocic uwage na delay glownego taska i wartosc countera!
 		  if(counter == /*0*/UINT16_MAX/16){
 			  prepareNewConfig(DHT22, 4, (uint8_t *)"Pokoj");
@@ -359,7 +361,7 @@ void AskForDataTaskThread(void const * argument)
 		  if(counter == /*4*/UINT16_MAX/8){
 			  prepareNewConfig(DHT22, 5, (uint8_t *)"Kuchnia");
 		  }
-		  //uwazac zeby tylko raz wysylac pozadana konfiguracje! a nie w petli co przepelnienie wartosci countera!
+		  //uwazac zeby tylko raz wysylac pozadana konfiguracje - a nie w petli co przepelnienie wartosci countera!
 		  if(counter <= UINT16_MAX/8){
 			  counter++;
 		  }
@@ -393,8 +395,7 @@ void PresentationTaskThread(void const * argument)
 			memset(name, 0x00, sizeof(name));
 			//
 			xSemaphoreTake(newDataMutexHandle, DELAY_TIME);
-			while(newData){ //problem klienta byl z synchronizacja wartosci tej zmiennej? chcial wypisywac dataBLE[-1][..]?
-//			if(newData){ //problem klienta byl z synchronizacja wartosci tej zmiennej? chcial wypisywac dataBLE[-1][..]?
+			while(newData){ //problem klienta byl z synchronizacja wartosci tej zmiennej?
 				newData--;
 				for(i=0; dataBLE[newData][i] != '\0' && i<MAX_NAME_LEN; i++){
 					name[i] = dataBLE[newData][i];
@@ -411,8 +412,24 @@ void PresentationTaskThread(void const * argument)
 					humid= humid/(uint16_t)10;
 					//xQueueSend(msgQueueHandle, (uint8_t *)uartData, 100);
 					printf("\r\nCzujnik %s\r\n", name);
+
+					memset(uartData, 0x0, sizeof(uartData));
+					sprintf(uartData, "\r\nCzujnik %s\r\n", name);
+					HAL_UART_Transmit(&huart3, (uint8_t *)uartData,
+							sizeof("\r\nCzujnik %s\r\n")+sizeof(name), 10);
+
 					printf("Temperatura\t %hu.%huC\r\nWilgotnosc\t %hu.%hu%%\r\n",
 							  temp, tempDecimal, humid, humidDecimal);
+
+//					memset(uartData, 0x0, sizeof(uartData));
+					sprintf(uartData, "Temperatura\t %hu.%huC\r\n", temp, tempDecimal);
+					HAL_UART_Transmit(&huart3, (uint8_t *)uartData,
+							sizeof("Temperatura\t %hu.%huC\r\n")+2*sizeof(uint16_t), 10);
+
+//					memset(uartData, 0x0, sizeof(uartData));
+					sprintf(uartData, "Wilgotnosc\t %hu.%hu%%\r\n", humid, humidDecimal);
+					HAL_UART_Transmit(&huart3, (uint8_t *)uartData,
+							sizeof("Wilgotnosc\t %hu.%hu%%\r\n")+2*sizeof(uint16_t), 10);
 				}
 			}
 			xSemaphoreGive(newDataMutexHandle);

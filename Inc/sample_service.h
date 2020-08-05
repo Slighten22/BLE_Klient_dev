@@ -46,13 +46,27 @@
 /* Includes ------------------------------------------------------------------*/
 #include <stdio.h>
 
+#include "cmsis_os.h"
+#include "app_x-cube-ble1.h"
 #include "bluenrg_gap.h"
 #include "bluenrg_aci_const.h"
 #include "hci.h"
 #include "hci_le.h"
 #include "sm.h"
-
 #include "role_type.h"
+
+extern volatile bool set_connectable;
+extern volatile bool client_ready;
+extern volatile bool discovery_started;
+extern volatile bool discovery_finished;
+extern volatile bool start_notifications_enable;
+extern volatile bool all_notifications_enabled;
+extern volatile bool start_read_tx_char_handle;//?
+extern volatile bool start_read_rx_char_handle;//?
+extern volatile bool all_tx_char_handles_read;
+extern volatile bool all_rx_char_handles_read;
+extern volatile bool all_servers_connected;
+extern volatile bool services_discovered;
 
 /** @addtogroup Applications
  *  @{
