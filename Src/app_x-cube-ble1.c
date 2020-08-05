@@ -51,6 +51,7 @@ extern uint8_t foundDevicesCount;
 
 extern volatile bool start_read_tx_char_handle;
 extern volatile bool start_read_rx_char_handle;
+extern uint8_t whichServerReceivesConfiguration;
 uint8_t whichServerConnecting = 1;
 
 /* USER CODE END */
@@ -277,11 +278,13 @@ static void User_Process(void)
 		/* Establish connection with first remote device */
 		if(foundDevicesCount > 0){
 			Make_Connection(); /* Stworzenie (nie nawiazanie) polaczenia (master) lub ustawienie wykrywalnosci (slave) */
+			set_connectable = false;
 		}
 		else{
 			printf("No connectable devices found!\r\n\r\n");
+			discovery_started = false;
+			discovery_finished = false;
 		}
-		set_connectable = FALSE;
 	}
 
     /* Start TX handle Characteristic dynamic discovery if not yet done */
@@ -302,7 +305,7 @@ static void User_Process(void)
     /* Klient wysyla dane konfiguracji serwerowi */
     if(client_ready)
     {
-		static uint8_t whichServerReceivesConfiguration = 0;
+//		static uint8_t whichServerReceivesConfiguration = 0;
     	if(newConfig == true){
 		  newConfig = false;
 		  sendData(whichServerReceivesConfiguration, sentConfigurationMsg, sizeof(sentConfigurationMsg));

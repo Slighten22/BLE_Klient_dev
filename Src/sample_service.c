@@ -35,15 +35,12 @@
   ******************************************************************************
   */
 /* Includes ------------------------------------------------------------------*/
-#include "main.h"
+//#include "main.h"
 #include "sample_service.h"
 #include "bluenrg_gap_aci.h"
 #include "bluenrg_gatt_aci.h"
 #include "bluenrg_hal_aci.h"
 #include <stdbool.h>
-
-/* Private defines */
-#define MAX_CONNECTIONS 8 //Mode 3: master/slave, max. 8 connections
 
 /** @addtogroup Applications
  *  @{
@@ -92,31 +89,9 @@ extern BLE_RoleTypeDef BLE_Role;
 extern osMutexId newDataMutexHandle;
 extern bool newDataPresent;
 
-/* Dla "drzewa" urzadzen pamietanego przez klienta */
-typedef struct ConnectedSensor {
-	uint8_t sensorName[MAX_NAME_LEN];
- 	float lastTempValue;
- 	float lastHumidValue;
-} ConnectedSensor;
-/* Skanowanie serverow przez klienta */
-typedef enum {
-	DISCONNECTED,
- 	READY_TO_CONNECT,
- 	CONNECTED
-} ConnectionStatus;
-typedef struct FoundDeviceInfo {
- 	uint8_t deviceAddressType;
- 	tBDAddr deviceAddress;
- 	uint8_t deviceName[MAX_NAME_LEN];
- 	ConnectionStatus connStatus;
- 	uint16_t connHandle;
- 	//
- 	uint8_t connSensorsCount;
- 	ConnectedSensor connSensors[/*MAX_CONN_SENSORS*/MAX_CONNECTIONS]; //moze bardziej vector?
-} FoundDeviceInfo;
-FoundDeviceInfo foundDevices[MAX_CONNECTIONS];
+//typedef-y do struktur -> w .h
+//FoundDeviceInfo foundDevices[MAX_CONNECTIONS]; //main.cpp
 uint8_t foundDevicesCount = 0;
-
 
 /**
  * @}
@@ -270,6 +245,7 @@ void receiveData(uint8_t* data_buffer, uint8_t Nb_bytes)
 void sendData(uint8_t server_index, uint8_t* data_buffer, uint8_t Nb_bytes)
 {
 	/* Klient wysyla dane do serwera */
+	//TODO wysylanie do konkretnego serwera (adres lub nazwa)
 	uint8_t server_ind = (server_index <= connectedDevicesCount ? server_index : connectedDevicesCount); /* Aby wyslac do polaczonego servera */
     aci_gatt_write_without_response(foundDevices[server_ind].connHandle, rxHandles[server_ind]+1, Nb_bytes, data_buffer); /* Max 20 bajtow na jedno wywolanie funkcji, serwer nie potwierdza otrzymania pakietu */
 	//aci_gatt_write_charac_value(connection_handle, rx_handle+1, Nb_bytes, data_buffer); /* The client provides a handle and the contents of the value (up to ATT_MTU-3 bytes, because the handle and the ATT operation code are included in the packet with the data) and the server will !acknowledge the write operation with a response! */
@@ -284,17 +260,17 @@ void sendData(uint8_t server_index, uint8_t* data_buffer, uint8_t Nb_bytes)
 void enableNotification(void)
 {
   uint8_t client_char_conf_data[] = {0x01, 0x00}; /* Enable notifications */
-  
   uint32_t tickstart = HAL_GetTick();
+  start_notifications_enable = TRUE;
   
   while(notifications_enabled_count < connectedDevicesCount){
 	  while(aci_gatt_write_charac_descriptor(foundDevices[notifications_enabled_count].connHandle, txHandles[notifications_enabled_count]+2, 2, client_char_conf_data)==BLE_STATUS_NOT_ALLOWED){ /* ? */
 		/* Radio is busy */
 		if ((HAL_GetTick() - tickstart) > (10*HCI_DEFAULT_TIMEOUT_MS)) break;
 	  }
+	  foundDevices[notifications_enabled_count].connStatus = CONNECTED_AND_NOTIFICATIONS_ENABLED;
 	  notifications_enabled_count++;
   }
-  start_notifications_enable = TRUE;
   all_notifications_enabled = TRUE; //?
   printf("All notifications enabled!\r\nReady to exchange data!\r\n\r\n");
 }
@@ -370,15 +346,20 @@ void GAP_DisconnectionComplete_CB(void)
  * @param  attr_value  Attribute value in the notification
  * @retval None
  */
-void GATT_Notification_CB(uint16_t attr_handle, uint8_t attr_len, uint8_t *attr_value)
+//void GATT_Notification_CB(uint16_t attr_handle, uint8_t attr_len, uint8_t *attr_value)
+void GATT_Notification_CB(uint16_t attr_handle, uint8_t attr_len, uint8_t *attr_value, uint16_t conn_handle)
 {
 	/* !Odebrane dane od servera! */
     if (attr_handle == txHandles[txHandlesDiscoveredCount-1]+1 && attr_len != 0 && *attr_value != '\0') { //TODO check txHandles[txHandlesDiscoveredCount] -> wszystkie handle sa takie same, rozrozniac urzadzenia mozna po pozycji w connectionHandles[] i po adresie z foundDevices[]
     	xSemaphoreTake(newDataMutexHandle, DELAY_TIME);
     	memset((char *)dataBLE[newData], '\0', MSG_LEN);
-    	for(int i=0; i<=attr_len && i<=MSG_LEN; i++){
+    	for(int i=0; i<=attr_len && i<=MSG_LEN; i++){ //nazwa czujnika, dane
     		dataBLE[newData][i] = *(attr_value+i);
     	}
+    	//handle do polaczenia
+    	dataBLE[newData][attr_len] = ((conn_handle >> 8) & 0xFF);
+    	dataBLE[newData][attr_len+1] = (conn_handle & 0xFF);
+
       	if(newData+1<MAX_MSGS){
       		newData++;
       	}
@@ -499,7 +480,8 @@ void user_notify(void * pData) /* Parsowanie otrzymanego eventu */
 				{
 				  evt_gatt_attr_notification *evt = (evt_gatt_attr_notification*)blue_evt->data;
 				  /* mozna jeszcze wykorzystac handle do polaczenia, ktory przychodzi razem z pakietem */
-				  GATT_Notification_CB(evt->attr_handle, evt->event_data_length - 2, evt->attr_value);
+//				  GATT_Notification_CB(evt->attr_handle, evt->event_data_length - 2, evt->attr_value);
+				  GATT_Notification_CB(evt->attr_handle, evt->event_data_length - 2, evt->attr_value, evt->conn_handle);
 				  /* a w callbacku odbior otrzymanych danych do jakiejs tablicy */
 				}
 				break;

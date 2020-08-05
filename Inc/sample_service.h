@@ -43,6 +43,9 @@
  extern "C" {
 #endif 
 
+ /* Private defines */
+ #define MAX_CONNECTIONS 8 //Mode 3: master/slave, max. 8 connections
+
 /* Includes ------------------------------------------------------------------*/
 #include <stdio.h>
 
@@ -67,6 +70,35 @@ extern volatile bool all_tx_char_handles_read;
 extern volatile bool all_rx_char_handles_read;
 extern volatile bool all_servers_connected;
 extern volatile bool services_discovered;
+
+
+/* Dla "drzewa" urzadzen pamietanego przez klienta */
+typedef struct ConnectedSensor {
+	uint8_t sensorName[MAX_NAME_LEN];
+ 	float lastTempValue;
+ 	float lastHumidValue;
+} ConnectedSensor;
+/* Skanowanie serverow przez klienta */
+typedef enum {
+	DISCONNECTED,
+ 	READY_TO_CONNECT,
+ 	CONNECTED,
+	CONNECTED_AND_NOTIFICATIONS_ENABLED
+} ConnectionStatus;
+typedef struct FoundDeviceInfo {
+ 	uint8_t deviceAddressType;
+ 	tBDAddr deviceAddress;
+ 	uint8_t deviceName[MAX_NAME_LEN];
+ 	ConnectionStatus connStatus;
+ 	uint16_t connHandle;
+ 	//
+ 	uint8_t connSensorsCount;
+ 	ConnectedSensor connSensors[/*MAX_CONN_SENSORS*/MAX_CONNECTIONS]; //moze bardziej vector?
+} FoundDeviceInfo;
+
+//
+extern FoundDeviceInfo foundDevices[];
+extern uint8_t foundDevicesCount;
 
 /** @addtogroup Applications
  *  @{
@@ -118,7 +150,7 @@ void Attribute_Modified_CB(uint16_t handle, uint8_t data_length,
 void GAP_ConnectionComplete_CB(uint8_t addr[6], uint16_t handle);
 void GAP_DisconnectionComplete_CB(void);
 void GATT_Notification_CB(uint16_t attr_handle, uint8_t attr_len,
-                          uint8_t *attr_value);
+                          uint8_t *attr_value, uint16_t conn_handle);
 void GAP_AdvertisingReport_CB(le_advertising_info *adv_info);
 void user_notify(void * pData);
 /**
