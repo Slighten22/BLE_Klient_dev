@@ -35,7 +35,6 @@
   ******************************************************************************
   */
 /* Includes ------------------------------------------------------------------*/
-//#include "main.h"
 #include "sample_service.h"
 #include "bluenrg_gap_aci.h"
 #include "bluenrg_gatt_aci.h"
@@ -58,7 +57,6 @@
  * @{
  */
 /* Private variables ---------------------------------------------------------*/
-//volatile uint16_t connectionHandles[MAX_CONNECTIONS];
 volatile uint8_t connectedDevicesCount = 0;
 volatile bool set_connectable = true;
 volatile bool client_ready = false;
@@ -80,14 +78,6 @@ uint8_t rxHandlesDiscoveredCount = 0;
 uint8_t notifications_enabled_count = 0;
 /* Server zna handle do swojego serwisu i swoich charakterystyk */
 uint16_t sampleServHandle, TXCharHandle, RXCharHandle;
-extern uint8_t bnrg_expansion_board;
-extern uint8_t whichLoopIteration;
-extern uint8_t whichServerConnecting;
-extern uint8_t dataBLE[][MSG_LEN];
-extern uint8_t newData;
-extern BLE_RoleTypeDef BLE_Role;
-extern osMutexId newDataMutexHandle;
-extern bool newDataPresent;
 
 //typedef-y do struktur -> w .h
 //FoundDeviceInfo foundDevices[MAX_CONNECTIONS]; //main.cpp
@@ -497,13 +487,13 @@ void user_notify(void * pData) /* Parsowanie otrzymanego eventu */
 				  if (start_read_tx_char_handle && !all_tx_char_handles_read)
 				  {
 					txHandles[txHandlesDiscoveredCount] = resp->attr_handle;
-					printf("TX Char Handle %04X\r\n\r\n", txHandles[txHandlesDiscoveredCount]);
+					//printf("TX Char Handle %04X\r\n\r\n", txHandles[txHandlesDiscoveredCount]);
 					//dalej (sprawdzenie czy to juz wszystkie ch-tyki TX) juz w EVT_BLUE_GATT_PROCEDURE_COMPLETE
 				  }
 				  if (start_read_rx_char_handle && !all_rx_char_handles_read)
 				  {
 					rxHandles[rxHandlesDiscoveredCount] = resp->attr_handle;
-					printf("RX Char Handle %04X\r\n\r\n", rxHandles[rxHandlesDiscoveredCount]);
+					//printf("RX Char Handle %04X\r\n\r\n", rxHandles[rxHandlesDiscoveredCount]);
 					//dalej (sprawdzenie czy to juz wszystkie ch-tyki RX) juz w EVT_BLUE_GATT_PROCEDURE_COMPLETE
 				  }
 				}

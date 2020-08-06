@@ -36,6 +36,8 @@
 void MX_BlueNRG_MS_Init(void);
 void MX_BlueNRG_MS_Process(void);
 
+extern uint8_t bdaddr[];
+
 #ifdef __cplusplus
 }
 #endif

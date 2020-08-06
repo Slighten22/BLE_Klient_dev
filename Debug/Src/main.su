@@ -4,10 +4,11 @@ main.cpp:238:13:void MX_USART3_UART_Init()	8	static
 main.cpp:276:13:void MX_GPIO_Init()	48	static
 main.cpp:328:6:void StartDefaultTask(const void*)	16	static
 main.cpp:350:6:void AskForDataTaskThread(const void*)	24	static
-main.cpp:386:6:void PresentationTaskThread(const void*)	96	static
-main.cpp:483:6:void CommunicationTaskThread(const void*)	72	static
-main.cpp:498:6:void delayMicroseconds(uint32_t)	40	static
-main.cpp:511:6:void prepareNewConfig(uint8_t, uint16_t, uint8_t*)	24	static
-main.cpp:540:6:bool checkIfTempSensorReadoutCorrect(uint32_t, uint8_t)	24	static
-main.cpp:556:6:void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef*)	16	static
-main.cpp:573:6:void Error_Handler()	4	static
+main.cpp:387:6:void PresentationTaskThread(const void*)	24	static
+main.cpp:406:6:void CommunicationTaskThread(const void*)	72	static
+main.cpp:421:6:void delayMicroseconds(uint32_t)	40	static
+main.cpp:434:6:void prepareNewConfig(uint8_t, uint16_t, uint8_t*)	24	static
+main.cpp:456:6:bool checkIfTempSensorReadoutCorrect(uint32_t, uint8_t)	24	static
+main.cpp:463:6:void printConnectedDevicesTree()	96	static
+main.cpp:553:6:void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef*)	16	static
+main.cpp:570:6:void Error_Handler()	4	static

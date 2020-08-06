@@ -47,8 +47,6 @@ extern bool newConfig;
 extern uint8_t sentConfigurationMsg[MSG_LEN];
 extern uint8_t whichLoopIteration;
 extern uint8_t foundDevicesCount;
-
-
 extern volatile bool start_read_tx_char_handle;
 extern volatile bool start_read_rx_char_handle;
 extern uint8_t whichServerReceivesConfiguration;
@@ -70,6 +68,7 @@ uint8_t whichServerConnecting = 1;
 
 /* Private variables ---------------------------------------------------------*/
 uint8_t bnrg_expansion_board = IDB04A1; /* at startup, suppose the X-NUCLEO-IDB04A1 is used */
+uint8_t bdaddr[BDADDR_SIZE];
 static volatile uint8_t user_button_init_state = 1;
 static volatile uint8_t user_button_pressed = 0;
 
@@ -127,7 +126,6 @@ void MX_BlueNRG_MS_Init(void)
 
   /* Initialize the peripherals and the BLE Stack */
   uint8_t CLIENT_BDADDR[] = {0xbb, 0x00, 0x00, 0xE1, 0x80, 0x02};
-  uint8_t bdaddr[BDADDR_SIZE];
   uint16_t service_handle, dev_name_char_handle, appearance_char_handle;
   
   uint8_t  hwVersion;

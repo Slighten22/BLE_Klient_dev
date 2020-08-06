@@ -70,7 +70,14 @@ extern volatile bool all_tx_char_handles_read;
 extern volatile bool all_rx_char_handles_read;
 extern volatile bool all_servers_connected;
 extern volatile bool services_discovered;
-
+extern uint8_t bnrg_expansion_board;
+extern uint8_t whichLoopIteration;
+extern uint8_t whichServerConnecting;
+extern uint8_t dataBLE[][MSG_LEN];
+extern uint8_t newData;
+extern BLE_RoleTypeDef BLE_Role;
+extern osMutexId newDataMutexHandle;
+extern bool newDataPresent;
 
 /* Dla "drzewa" urzadzen pamietanego przez klienta */
 typedef struct ConnectedSensor {

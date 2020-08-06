@@ -36,12 +36,11 @@ extern "C" {
 /* USER CODE BEGIN Includes */
 #include "bluenrg_types.h"
 #include <stdbool.h>
-#define MAX_MSGS 5 //ile max wiadomosci moze odebrac i zapamietac klient w czasie jednego slotu
-#define MSG_LEN 20
-//Delay time between following reads in ms
-#define DELAY_TIME 3000
-//Sensor name max length (in characters)
-#define MAX_NAME_LEN 12
+#define MAX_MSGS 5 //Max msgs that a client can receive and remember during 1 slot
+#define MSG_LEN 20 //Configuation message max length
+#define BUF_LEN 70 //uartData[] lenght for printf
+#define DELAY_TIME 3000 //Delay time between following reads in ms
+#define MAX_NAME_LEN 12 //Sensor name max length (in characters)
 
 typedef enum {
 	DHT22
