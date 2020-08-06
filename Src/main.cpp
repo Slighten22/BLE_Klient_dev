@@ -83,6 +83,7 @@ void delayMicroseconds(uint32_t us);
 void prepareNewConfig(uint8_t sensorType, uint16_t interval, uint8_t *name);
 bool checkIfTempSensorReadoutCorrect(uint32_t dataBits, uint8_t checksumBits);
 void printConnectedDevicesTree(void);
+void updateReadoutValues(void);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -395,9 +396,8 @@ void PresentationTaskThread(void const * argument)
 		xTaskNotifyWait(pdFALSE, 0xFF, &notifValue, portMAX_DELAY);
 		if((notifValue&0x02) != 0x00) //Sprawdza czy notifValue zawiera wartosc ktora wyslal task odczytu
 		{
-			xSemaphoreTake(newDataMutexHandle, DELAY_TIME);
+			updateReadoutValues();
 			printConnectedDevicesTree();
-			xSemaphoreGive(newDataMutexHandle);
 		}
 	}
 }
@@ -460,12 +460,12 @@ bool checkIfTempSensorReadoutCorrect(uint32_t dataBits, uint8_t checksumBits){
 	return false;
 }
 
-void printConnectedDevicesTree(void){
+void updateReadoutValues(void){
+	xSemaphoreTake(newDataMutexHandle, DELAY_TIME);
 	//Format jednej wiadomosci w dataBLE: nazwa_czujnika '\0' dane handle_do_pol
 	char sensorName[MAX_NAME_LEN]; char deviceName[MAX_NAME_LEN]; int i;
 	memset(sensorName, 0x00, sizeof(sensorName));
 	memset(deviceName, 0x00, sizeof(deviceName));
-
 	while(newData){
 		newData--;
 		for(i=0; dataBLE[newData][i] != '\0' && i<MAX_NAME_LEN; i++){ sensorName[i] = dataBLE[newData][i]; }
@@ -492,7 +492,57 @@ void printConnectedDevicesTree(void){
 					}
 				}
 			}
-			//Wypisanie odczytu "po staremu"
+		} //if(checkIfTempSensorReadoutCorrect(dataBits, checksumBits))
+	} //while(newData)
+	xSemaphoreGive(newDataMutexHandle);
+}
+
+void printConnectedDevicesTree(void){
+	//wypisz cale drzewo polaczen klienta
+	uint8_t len = 0; uint8_t pos = 0; char buf[60];
+	memset(uartData, 0x0, sizeof(uartData)); memset(buf, 0x0, sizeof(buf));
+	printf("=====\r\nUrzadzenie centralne (adres "); len = sprintf(buf, "=====<br>Urzadzenie centralne (adres ");
+	memcpy(uartData+pos, buf, len); pos += len;
+	for(int p = 5; p > 0; p--){
+		len = printf("%02X-", bdaddr[p]); sprintf(buf, "%02X-", bdaddr[p]); memcpy(uartData+pos, buf, len); pos += len;
+	}
+//	len = printf("%02X)\r\nPolaczone urzadzenia peryferyjne:\r\n\r\n", bdaddr[0]);
+//	sprintf(buf, "%02X)\r\nPolaczone urzadzenia peryferyjne:\r\n\r\n", bdaddr[0]);
+	printf("%02X)\r\nPolaczone urzadzenia peryferyjne:\r\n\r\n", bdaddr[0]);
+	len = sprintf(buf, "%02X)<br>Polaczone urzadzenia peryferyjne:<br><br>", bdaddr[0]);
+	memcpy(uartData+pos, buf, len); pos += len;
+
+	HAL_UART_Transmit(&huart3, (uint8_t *)uartData, pos, TRANSMIT_TIME);
+	memset(uartData, 0x0, sizeof(uartData)); memset(buf, 0x0, sizeof(buf)); len = 0; pos = 0;
+
+	for(int k=0; k<foundDevicesCount; k++){
+		printf("%d. Urzadzenie %s (adres ", k+1, foundDevices[k].deviceName);
+		len = sprintf(buf, "%d. Urzadzenie %s (adres ", k+1, foundDevices[k].deviceName);
+		memcpy(uartData+pos, buf, len); pos += len;
+		for(int p = 5; p > 0; p--){
+			printf("%02X-", foundDevices[k].deviceAddress[p]); len = sprintf(buf, "%02X-", foundDevices[k].deviceAddress[p]);
+			memcpy(uartData+pos, buf, len); pos += len;
+		}
+		printf("%02X)\r\n", foundDevices[k].deviceAddress[0]); len = sprintf(buf, "%02X)<br>", foundDevices[k].deviceAddress[0]);
+		memcpy(uartData+pos, buf, len); pos += len;
+		for(int m=0; m<foundDevices[k].connSensorsCount; m++){
+			printf("Czujnik %s\r\n", foundDevices[k].connSensors[m].sensorName);
+			len =  sprintf(buf, "Czujnik %s<br>", foundDevices[k].connSensors[m].sensorName); memcpy(uartData+pos, buf, len);pos += len;
+			uint16_t humid = (uint16_t)foundDevices[k].connSensors[m].lastHumidValue;
+			uint16_t temp  = (uint16_t)foundDevices[k].connSensors[m].lastTempValue;
+			uint16_t humidDecimal = ((int)(foundDevices[k].connSensors[m].lastHumidValue*10))%10;
+			uint16_t tempDecimal  = ((int)(foundDevices[k].connSensors[m].lastTempValue*10))%10;
+			printf("Temperatura\t %hu.%huC\r\n", temp, tempDecimal);
+			len = sprintf(buf, "Temperatura\t %hu.%huC<br>", temp, tempDecimal); memcpy(uartData+pos, buf, len); pos += len;
+			printf("Wilgotnosc\t %hu.%hu%%\r\n\r\n", humid, humidDecimal);
+			len = sprintf(buf, "Wilgotnosc\t %hu.%hu%%<br><br>", humid, humidDecimal); memcpy(uartData+pos, buf, len); pos += len;
+		}
+
+		HAL_UART_Transmit(&huart3, (uint8_t *)uartData, pos, TRANSMIT_TIME);
+		memset(uartData, 0x0, sizeof(uartData)); memset(buf, 0x0, sizeof(buf)); len = 0; pos = 0;
+
+	}
+	//Wypisanie odczytu "po staremu"
 //					uint16_t humid = (dataBLE[newData][i+1] << 8) | dataBLE[newData][i+2];
 //					uint16_t temp  = (dataBLE[newData][i+3] << 8) | dataBLE[newData][i+4];
 //					uint16_t humidDecimal = humid%10;
@@ -519,26 +569,7 @@ void printConnectedDevicesTree(void){
 //					sprintf(uartData, "Wilgotnosc\t %hu.%hu%%\r\n", humid, humidDecimal);
 //					HAL_UART_Transmit(&huart3, (uint8_t *)uartData,
 //							sizeof("Wilgotnosc\t %hu.%hu%%\r\n")+2*sizeof(uint16_t), 10);
-		} //if(checkIfTempSensorReadoutCorrect(dataBits, checksumBits))
-	} //while(newData)
-	//wypisz cale drzewo polaczen klienta
-	printf("=====\r\nUrzadzenie centralne (adres ");
-	for(int p = 5; p > 0; p--){	printf("%02X-", bdaddr[p]); }
-	printf("%02X)\r\nPolaczone urzadzenia peryferyjne:\r\n\r\n", bdaddr[0]);
-	for(int k=0; k<foundDevicesCount; k++){
-		printf("%d. Urzadzenie %s (adres ", k+1, foundDevices[k].deviceName);
-		for(int p = 5; p > 0; p--){	printf("%02X-", foundDevices[k].deviceAddress[p]); }
-		printf("%02X)\r\n", foundDevices[k].deviceAddress[0]);
-		for(int m=0; m<foundDevices[k].connSensorsCount; m++){
-			printf("Czujnik %s\r\n", foundDevices[k].connSensors[m].sensorName);
-			uint16_t humid = (uint16_t)foundDevices[k].connSensors[m].lastHumidValue;
-			uint16_t temp  = (uint16_t)foundDevices[k].connSensors[m].lastTempValue;
-			uint16_t humidDecimal = ((int)(foundDevices[k].connSensors[m].lastHumidValue*10))%10;
-			uint16_t tempDecimal  = ((int)(foundDevices[k].connSensors[m].lastTempValue*10))%10;
-			printf("Temperatura\t %hu.%huC\r\n", temp, tempDecimal);
-			printf("Wilgotnosc\t %hu.%hu%%\r\n\r\n", humid, humidDecimal);
-		}
-	}
+
 }
 /* USER CODE END 7 */
 
