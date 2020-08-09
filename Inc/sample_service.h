@@ -90,7 +90,8 @@ typedef enum {
 	DISCONNECTED,
  	READY_TO_CONNECT,
  	CONNECTED,
-	CONNECTED_AND_NOTIFICATIONS_ENABLED
+	PAIRED,
+	READY_TO_EXCHANGE_DATA
 } ConnectionStatus;
 typedef struct FoundDeviceInfo {
  	uint8_t deviceAddressType;
@@ -160,6 +161,7 @@ void GATT_Notification_CB(uint16_t attr_handle, uint8_t attr_len,
                           uint8_t *attr_value, uint16_t conn_handle);
 void GAP_AdvertisingReport_CB(le_advertising_info *adv_info);
 void user_notify(void * pData);
+void Pair_Devices(void);
 /**
  * @}
  */

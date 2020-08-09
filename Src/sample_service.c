@@ -58,6 +58,7 @@
  */
 /* Private variables ---------------------------------------------------------*/
 volatile uint8_t connectedDevicesCount = 0;
+volatile uint8_t pairedDevicesCount = 0;
 volatile bool set_connectable = true;
 volatile bool client_ready = false;
 volatile bool discovery_started = false;
@@ -69,6 +70,8 @@ volatile bool start_read_rx_char_handle = false;//?
 volatile bool all_tx_char_handles_read = false;
 volatile bool all_rx_char_handles_read = false;
 volatile bool all_servers_connected = false;
+volatile bool pairing_started = false;
+volatile bool pairing_finished = false;
 volatile bool services_discovered = false;
 /* Klient zna handle do charakterystyk serverow */
 uint16_t txHandles[MAX_CONNECTIONS];
@@ -153,11 +156,8 @@ fail:
  */
 void Make_Connection(void)
 {  
-    tBleStatus ret;
-    BSP_LED_On(LED2); //To indicate the start of the connection and discovery phase
-
 	printf("Client Create Connection with device %d\r\n\r\n", connectedDevicesCount+1);
-	ret = aci_gap_create_connection(
+	tBleStatus ret = aci_gap_create_connection(
 		SCAN_P/*0x0010*/, /* 10240 msec = Scan Interval: from when the Controller started its last scan until it begins the subsequent scan = how long to wait between scans (for a number N, Time = N x 0.625 msec) */
 		SCAN_L/*0x0010*/, /* 10240 msec = Scan Window: amount of time for the duration of the LE scan = how long to scan (for a number N, Time = N x 0.625 msec) */
 		foundDevices[connectedDevicesCount].deviceAddressType, /* Peer_Address_Type */
@@ -172,6 +172,23 @@ void Make_Connection(void)
 	);
 	if (ret != BLE_STATUS_SUCCESS){
 	  printf("Error while starting connection with device %d\r\n\r\n", connectedDevicesCount);
+	}
+}
+
+/**
+ * @brief Start the pairing process with a scanned device
+ * @param none
+ * @retval none
+ */
+void Pair_Devices(void){
+	tBleStatus ret = aci_gap_send_pairing_request(/*conn_handle*/foundDevices[pairedDevicesCount].connHandle, /*force_rebond*/0x01);
+	//0x00: Pairing request is sent only if the device has not previously bonded
+	//0x01: Pairing request will be sent even if the device was previously bonded
+	if (ret != BLE_STATUS_SUCCESS) {
+		printf("Error starting device pairing process with device %d\r\n\r\n", pairedDevicesCount+1);
+	}
+	else{
+		printf("Started pairing with device %d\r\n\r\n", pairedDevicesCount+1);
 	}
 }
 
@@ -258,7 +275,7 @@ void enableNotification(void)
 		/* Radio is busy */
 		if ((HAL_GetTick() - tickstart) > (10*HCI_DEFAULT_TIMEOUT_MS)) break;
 	  }
-	  foundDevices[notifications_enabled_count].connStatus = CONNECTED_AND_NOTIFICATIONS_ENABLED;
+	  foundDevices[notifications_enabled_count].connStatus = READY_TO_EXCHANGE_DATA;
 	  notifications_enabled_count++;
   }
   all_notifications_enabled = TRUE; //?
@@ -320,6 +337,7 @@ void GAP_DisconnectionComplete_CB(void)
   printf("Disconnected\n");
 
   //TODO: przemyslec zachowanie klienta po rozlaczeniu polaczenia!
+  //connectedDevicesCount--; //trzeba jeszcze odnalezc, ktore urz. odlaczone
   /* Make the device connectable again. */
 //  set_connectable = TRUE;
 //  start_notifications_enable = FALSE;
@@ -336,7 +354,6 @@ void GAP_DisconnectionComplete_CB(void)
  * @param  attr_value  Attribute value in the notification
  * @retval None
  */
-//void GATT_Notification_CB(uint16_t attr_handle, uint8_t attr_len, uint8_t *attr_value)
 void GATT_Notification_CB(uint16_t attr_handle, uint8_t attr_len, uint8_t *attr_value, uint16_t conn_handle)
 {
 	/* !Odebrane dane od servera! */
@@ -363,13 +380,28 @@ void GATT_Notification_CB(uint16_t attr_handle, uint8_t attr_len, uint8_t *attr_
  * @retval None
  */
 void GAP_AdvertisingReport_CB(le_advertising_info *adv_info){
+
+	//pakiet le_advertising_info *adv_info:
+	//(!)bajt 0: evt->data[0] is number of reports (On BlueNRG-MS is always 1)
+	//bajt 1: evt_type - ADV_IND - Connectable undirected advertising Used by an advertiser when it wants another device toconnect to it
+	//bajt 2: bdaddr_type - public addres (0x00) - 1 bajt
+	//bdaddr - 6 bajtow adresu
+	//data_length - <tutaj przesuniety ostatni bajt adresu zamiast dlugosci danych>. dl. danych chyba przepada
+
+	//Table 42. ADV_IND advertising data w dokumentacji PM0237 - co jest czym w danych od ADV_IND. Mooze to *jakos* wykorzystac do autor.
+
+	//data_RSSI - 6 niewiele mowiacych bajtow (opisane w ^) (\032\002\001\006\r\t) potem nazwa urzadzenia - zaczyna sie na data_RSSI+6
+	//potem 3 bajty tez niewiele dajacych danych i tyle
+
+	//strony: 21 i 66 w dokumentacji - pairing and bonding - nawiazywanie bezpiecznego polacenia
+
 	//TODO kopiowanie nazwy!
 	char deviceName[] = "name";
 	//nazwa - zaczyna sie od bitu o ind. 6, 'test' ma 4 znaki
 	memcpy(deviceName, adv_info->data_RSSI+6, 4);
 	//sprawdzic, czy zgadza sie nazwa = czy chcemy sie polaczyc ze znalezionym urzadzeniem
 	if(strcmp((char *)deviceName, "test") == 0){
-	  //sprawdzic, czy znalezione urzadzenie to nie duplikat (czy nie mamy juz tego adresu w tablicy)
+	  //sprawdzic, czy znalezione urzadzenie to nie duplikat (czy nie mamy juz tego adresu w tablicy) TODO lepsza weryfikacja!
 	  bool isDeviceNew = true;
 	  tBDAddr foundDeviceAddress;
 	  memcpy(foundDeviceAddress, adv_info->bdaddr+1, BD_ADDR_SIZE);
@@ -470,7 +502,6 @@ void user_notify(void * pData) /* Parsowanie otrzymanego eventu */
 				{
 				  evt_gatt_attr_notification *evt = (evt_gatt_attr_notification*)blue_evt->data;
 				  /* mozna jeszcze wykorzystac handle do polaczenia, ktory przychodzi razem z pakietem */
-//				  GATT_Notification_CB(evt->attr_handle, evt->event_data_length - 2, evt->attr_value);
 				  GATT_Notification_CB(evt->attr_handle, evt->event_data_length - 2, evt->attr_value, evt->conn_handle);
 				  /* a w callbacku odbior otrzymanych danych do jakiejs tablicy */
 				}
@@ -543,6 +574,24 @@ void user_notify(void * pData) /* Parsowanie otrzymanego eventu */
 				  }
 			  }
 			  break;
+
+			  /* Koniec procesu parowania urzadzen */
+			  case EVT_BLUE_GAP_PAIRING_CMPLT:
+			  {
+				  evt_gap_pairing_cmplt *evt = (evt_gap_pairing_cmplt *)blue_evt->data;
+				  if(evt->status == 0x00){ //pairing success
+					  foundDevices[pairedDevicesCount].connStatus = PAIRED;
+					  printf("Paired with device %d\r\n\r\n", ++pairedDevicesCount);
+					  if(pairedDevicesCount < foundDevicesCount){
+					    Pair_Devices();
+					  }
+					  else if(pairedDevicesCount == foundDevicesCount){
+					    pairing_finished = true;
+					  printf("Paired with all found devices\r\n\r\n");
+					}
+				  }
+			  }
+
 		  }
 		} /* EVT_VENDOR */
 		break;

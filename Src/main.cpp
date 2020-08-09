@@ -506,15 +506,11 @@ void printConnectedDevicesTree(void){
 	for(int p = 5; p > 0; p--){
 		len = printf("%02X-", bdaddr[p]); sprintf(buf, "%02X-", bdaddr[p]); memcpy(uartData+pos, buf, len); pos += len;
 	}
-//	len = printf("%02X)\r\nPolaczone urzadzenia peryferyjne:\r\n\r\n", bdaddr[0]);
-//	sprintf(buf, "%02X)\r\nPolaczone urzadzenia peryferyjne:\r\n\r\n", bdaddr[0]);
 	printf("%02X)\r\nPolaczone urzadzenia peryferyjne:\r\n\r\n", bdaddr[0]);
 	len = sprintf(buf, "%02X)<br>Polaczone urzadzenia peryferyjne:<br><br>", bdaddr[0]);
 	memcpy(uartData+pos, buf, len); pos += len;
-
 	HAL_UART_Transmit(&huart3, (uint8_t *)uartData, pos, TRANSMIT_TIME);
 	memset(uartData, 0x0, sizeof(uartData)); memset(buf, 0x0, sizeof(buf)); len = 0; pos = 0;
-
 	for(int k=0; k<foundDevicesCount; k++){
 		printf("%d. Urzadzenie %s (adres ", k+1, foundDevices[k].deviceName);
 		len = sprintf(buf, "%d. Urzadzenie %s (adres ", k+1, foundDevices[k].deviceName);
@@ -536,11 +532,9 @@ void printConnectedDevicesTree(void){
 			len = sprintf(buf, "Temperatura\t %hu.%huC<br>", temp, tempDecimal); memcpy(uartData+pos, buf, len); pos += len;
 			printf("Wilgotnosc\t %hu.%hu%%\r\n\r\n", humid, humidDecimal);
 			len = sprintf(buf, "Wilgotnosc\t %hu.%hu%%<br><br>", humid, humidDecimal); memcpy(uartData+pos, buf, len); pos += len;
+			HAL_UART_Transmit(&huart3, (uint8_t *)uartData, pos, TRANSMIT_TIME);
+			memset(uartData, 0x0, sizeof(uartData)); memset(buf, 0x0, sizeof(buf)); len = 0; pos = 0;
 		}
-
-		HAL_UART_Transmit(&huart3, (uint8_t *)uartData, pos, TRANSMIT_TIME);
-		memset(uartData, 0x0, sizeof(uartData)); memset(buf, 0x0, sizeof(buf)); len = 0; pos = 0;
-
 	}
 	//Wypisanie odczytu "po staremu"
 //					uint16_t humid = (dataBLE[newData][i+1] << 8) | dataBLE[newData][i+2];

@@ -88,6 +88,8 @@ extern volatile bool all_notifications_enabled;
 extern volatile bool services_discovered;
 extern volatile bool all_tx_char_handles_read;
 extern volatile bool all_rx_char_handles_read;
+extern volatile bool pairing_started;
+extern volatile bool pairing_finished;
 extern volatile uint16_t connectionHandles[];
 
 /* USER CODE BEGIN PV */
@@ -125,7 +127,7 @@ void MX_BlueNRG_MS_Init(void)
   /* USER CODE END BlueNRG_MS_Init_PreTreatment */
 
   /* Initialize the peripherals and the BLE Stack */
-  uint8_t CLIENT_BDADDR[] = {0xbb, 0x00, 0x00, 0xE1, 0x80, 0x02};
+  uint8_t CLIENT_BDADDR[] = {0xaa, 0x00, 0x00, 0xE1, 0x80, 0x02};
   uint16_t service_handle, dev_name_char_handle, appearance_char_handle;
   
   uint8_t  hwVersion;
@@ -193,19 +195,24 @@ void MX_BlueNRG_MS_Init(void)
   /* Klient: Inicjalizacja GAP (Generic Access Profile) - ustawia role urzadzenia, sciaga handle do nazwy i (nieuzywany?)do serwisow */
   ret = aci_gap_init_IDB05A1(GAP_CENTRAL_ROLE_IDB05A1, 0x00, 0x07, &service_handle, &dev_name_char_handle, &appearance_char_handle);
   if (ret != BLE_STATUS_SUCCESS) {
-    printf("GAP_Init failed.\n");
+    printf("GAP_Init failed.\r\n");
   }
 
+  /* Parowanie - ustawienie typu IO urzadzenia */
+  ret = aci_gap_set_io_capability(IO_CAP_KEYBOARD_ONLY); //
+  if(ret != BLE_STATUS_SUCCESS){
+	  printf("Error setting IO capability!\r\n");
+  }
   /* Wymagania autoryzacji - w tym ustalony (staly) kod pin, typ klucza autoryzacji, tryb laczenia */
-  //nie ma znaczenia, czy to jest, czy nie ma! lacza sie i tak w ten sam sposob
   ret = aci_gap_set_auth_requirement(MITM_PROTECTION_REQUIRED,
-                                     OOB_AUTH_DATA_ABSENT,
-                                     NULL,
-                                     7,
-                                     16,
-                                     USE_FIXED_PIN_FOR_PAIRING,
-                                     123456,
-                                     BONDING);
+                                     OOB_AUTH_DATA_ABSENT,  /* no OOB data is present */
+                                     NULL, /* no OOB data */
+                                     7, /* Min. encryption key size */
+                                     16,/* Max. encryption key size */
+                                     USE_FIXED_PIN_FOR_PAIRING, /* !! opcja DONOT_USE_FIXED_PIN_... */
+                                     831629, /* a moze byc 0 gdy opcja ^ */
+                                     BONDING); /*!!bonding is enabled  => jak sie ylaczy bonding, to za kazdym razem jest parowanie od nowa */
+//									 NO_BONDING);
   if (ret == BLE_STATUS_SUCCESS) {
     printf("BLE Stack Initialized.\r\n\r\n");
   }
@@ -266,13 +273,12 @@ static void User_Process(void)
 			printf("Error starting device discovery process!\r\n\r\n");
 		}
 		else{
-			discovery_started = TRUE;
+			discovery_started = true;
 			printf("Device discovery process started\r\n\r\n");
 		}
 	}
 
-	if(set_connectable && discovery_finished)
-	{
+	if(set_connectable && discovery_finished){
 		/* Establish connection with first remote device */
 		if(foundDevicesCount > 0){
 			Make_Connection(); /* Stworzenie (nie nawiazanie) polaczenia (master) lub ustawienie wykrywalnosci (slave) */
@@ -280,13 +286,22 @@ static void User_Process(void)
 		}
 		else{
 			printf("No connectable devices found!\r\n\r\n");
+			/* Powtorz skanowanie w poszukiwaniu urzadzen */
 			discovery_started = false;
 			discovery_finished = false;
 		}
 	}
 
+	//parowanie
+	if(all_servers_connected && !pairing_started){
+		Pair_Devices();
+		pairing_started = true;
+	}
+	//a potem obsluzyc EVT_BLUE_GAP_PASS_KEY_REQUEST podajac odp. kod
+	//a dla stalego pinu od razu obsluzyc EVT_BLUE_GAP_PAIRING_CMPLT
+
     /* Start TX handle Characteristic dynamic discovery if not yet done */
-    if (all_servers_connected && !start_read_tx_char_handle){
+    if (pairing_finished && !start_read_tx_char_handle){
       startReadTXCharHandle();
     }
     /* Start RX handle Characteristic dynamic discovery if not yet done */
