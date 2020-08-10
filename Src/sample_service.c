@@ -52,6 +52,7 @@
 /** @defgroup SAMPLE_SERVICE 
  * @{
  */
+#define RSSI_DETAILS_SIZE 8
 
 /** @defgroup SAMPLE_SERVICE_Private_Variables
  * @{
@@ -380,48 +381,49 @@ void GATT_Notification_CB(uint16_t attr_handle, uint8_t attr_len, uint8_t *attr_
  * @retval None
  */
 void GAP_AdvertisingReport_CB(le_advertising_info *adv_info){
-
-	//pakiet le_advertising_info *adv_info:
-	//(!)bajt 0: evt->data[0] is number of reports (On BlueNRG-MS is always 1)
-	//bajt 1: evt_type - ADV_IND - Connectable undirected advertising Used by an advertiser when it wants another device toconnect to it
-	//bajt 2: bdaddr_type - public addres (0x00) - 1 bajt
-	//bdaddr - 6 bajtow adresu
-	//data_length - <tutaj przesuniety ostatni bajt adresu zamiast dlugosci danych>. dl. danych chyba przepada
-
-	//Table 42. ADV_IND advertising data w dokumentacji PM0237 - co jest czym w danych od ADV_IND. Mooze to *jakos* wykorzystac do autor.
-
-	//data_RSSI - 6 niewiele mowiacych bajtow (opisane w ^) (\032\002\001\006\r\t) potem nazwa urzadzenia - zaczyna sie na data_RSSI+6
-	//potem 3 bajty tez niewiele dajacych danych i tyle
-
-	//strony: 21 i 66 w dokumentacji - pairing and bonding - nawiazywanie bezpiecznego polacenia
-
-	//TODO kopiowanie nazwy!
-	char deviceName[] = "name";
-	//nazwa - zaczyna sie od bitu o ind. 6, 'test' ma 4 znaki
-	memcpy(deviceName, adv_info->data_RSSI+6, 4);
-	//sprawdzic, czy zgadza sie nazwa = czy chcemy sie polaczyc ze znalezionym urzadzeniem
-	if(strcmp((char *)deviceName, "test") == 0){
-	  //sprawdzic, czy znalezione urzadzenie to nie duplikat (czy nie mamy juz tego adresu w tablicy) TODO lepsza weryfikacja!
-	  bool isDeviceNew = true;
-	  tBDAddr foundDeviceAddress;
-	  memcpy(foundDeviceAddress, adv_info->bdaddr+1, BD_ADDR_SIZE);
-	  for(int i=0; i<foundDevicesCount; i++){
-		  if(strcmp((char *)foundDeviceAddress, (char *)foundDevices[foundDevicesCount].deviceAddress) == 0){
-			  isDeviceNew = false;
-		  }
-	  }
-	  if(isDeviceNew){
-		  printf("New device found!\r\n\r\n");
-		  //dodac nowo znalezione urzadzenie do tablicy pamietanych urzadzen, zwiekszyc liczbe pamietanych urzadzen
-		  foundDevices[foundDevicesCount].deviceAddressType = adv_info->bdaddr_type;
-		  memcpy(foundDevices[foundDevicesCount].deviceAddress, adv_info->bdaddr+1, BD_ADDR_SIZE);
-		  //nazwa i status
-		  memcpy(foundDevices[foundDevicesCount].deviceName, adv_info->data_RSSI+6, 4); //TODO nazwa moze byc rozna niz test!!!
-		  foundDevices[foundDevicesCount].connStatus = READY_TO_CONNECT;
-		  if(foundDevicesCount+1<MAX_CONNECTIONS){
-			  foundDevicesCount++;
-		  }
-	  }
+	if(adv_info->evt_type == ADV_IND){
+		//sprawdzic, czy znalezione urzadzenie to nie duplikat (czy nie mamy juz tego adresu w tablicy)
+		bool isDeviceNew = true;
+		tBDAddr foundDeviceAddress;
+		memset(foundDeviceAddress, 0, BD_ADDR_SIZE);
+		memcpy(foundDeviceAddress, adv_info->bdaddr, BD_ADDR_SIZE);
+		for(int i=0; i<foundDevicesCount; i++){
+			if(memcmp(foundDeviceAddress, foundDevices[i].deviceAddress, BD_ADDR_SIZE) == 0){
+				isDeviceNew = false;
+			}
+		}
+		if(isDeviceNew){
+			printf("New device found!\r\n\r\n");
+			//zapisac nazwe urzadzenia
+			uint8_t name_len = adv_info->data_length-BD_ADDR_SIZE-RSSI_DETAILS_SIZE; //wybrac tylko bajty dot. nazwy
+			uint8_t device_name[name_len];
+			memset(device_name, 0, name_len);
+			memcpy(device_name, adv_info->data_RSSI+5, name_len); //nazwa urzadzenia przesunieta o 5 bajtow w data_RSSI[]
+			//dodac nowo znalezione urzadzenie do tablicy pamietanych urzadzen, zwiekszyc liczbe pamietanych urzadzen
+			foundDevices[foundDevicesCount].deviceAddressType = adv_info->bdaddr_type;
+			memcpy(foundDevices[foundDevicesCount].deviceAddress, adv_info->bdaddr, BD_ADDR_SIZE);
+			//nazwa i status
+			if(name_len > MAX_NAME_LEN) { name_len = MAX_NAME_LEN; }
+			memcpy(foundDevices[foundDevicesCount].deviceName, adv_info->data_RSSI+5, name_len);
+			foundDevices[foundDevicesCount].connStatus = READY_TO_CONNECT;
+			if(foundDevicesCount+1<MAX_CONNECTIONS){ foundDevicesCount++; }
+		}
+	} /* evt_type == ADV_IND */
+	else if(adv_info->evt_type == SCAN_RSP){
+		uint8_t pin_len = adv_info->data_length;
+		uint8_t received_pin[pin_len];
+		memset(received_pin, 0, pin_len);
+		memcpy(received_pin, adv_info->data_RSSI, pin_len);
+		const uint8_t correct_pin[6] = {'8','3','1','6','2','9'};
+		if(memcmp(received_pin, correct_pin, pin_len) != 0){
+			//pin nie zgadza sie = nie chcemy sie laczyc z tym urzadzeniem = usuwamy je z foundDevices[] i czyscimy jego dane
+			printf("Wrong authentication code from device %d - unable to connect\r\n\r\n", foundDevicesCount);
+			foundDevices[foundDevicesCount].deviceAddressType = 0;
+			memset(foundDevices[foundDevicesCount].deviceAddress, 0, BD_ADDR_SIZE);
+			memset(foundDevices[foundDevicesCount].deviceName, 0, MAX_NAME_LEN);
+			foundDevices[foundDevicesCount].connStatus = DISCONNECTED;
+			if(foundDevicesCount > 0){ foundDevicesCount--; } //ew. sprawdzic czy nie usuwamy ostatniego urzadzenia
+		}
 	}
 }
 
@@ -468,7 +470,7 @@ void user_notify(void * pData) /* Parsowanie otrzymanego eventu */
 				case EVT_LE_ADVERTISING_REPORT:
 				{
 				  //wyciagnac info o typie adresu, adres i nazwe urzadzenia
-				  le_advertising_info *adv_info = (void*)evt->data;
+				  le_advertising_info *adv_info = (void*)(evt->data+1); /*evt->data[0] is number of reports (On BlueNRG-MS is always 1)*/
 				  GAP_AdvertisingReport_CB(adv_info);
 				}
 				break;
@@ -583,15 +585,15 @@ void user_notify(void * pData) /* Parsowanie otrzymanego eventu */
 					  foundDevices[pairedDevicesCount].connStatus = PAIRED;
 					  printf("Paired with device %d\r\n\r\n", ++pairedDevicesCount);
 					  if(pairedDevicesCount < foundDevicesCount){
-					    Pair_Devices();
+						  Pair_Devices();
 					  }
 					  else if(pairedDevicesCount == foundDevicesCount){
-					    pairing_finished = true;
-					  printf("Paired with all found devices\r\n\r\n");
-					}
+						  pairing_finished = true;
+						  printf("Paired with all found devices\r\n\r\n");
+					  }
 				  }
 			  }
-
+			  break;
 		  }
 		} /* EVT_VENDOR */
 		break;

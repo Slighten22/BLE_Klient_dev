@@ -362,10 +362,10 @@ void AskForDataTaskThread(void const * argument)
 		  //chyba juz tu powinno byc wskazane do ktorego servera ma trafic konf.
 		  //!zwrocic uwage na delay glownego taska i wartosc countera!
 		  if(counter == UINT16_MAX/16){
-			  prepareNewConfig(DHT22, 4, (uint8_t *)"Pokoj");
+			  prepareNewConfig(DHT22, 4, (uint8_t *)"Biurko");
 		  }
 		  if(counter == UINT16_MAX/8){
-			  prepareNewConfig(DHT22, 5, (uint8_t *)"Kuchnia");
+			  prepareNewConfig(DHT22, 5, (uint8_t *)"Okno");
 		  }
 		  //uwazac zeby tylko raz wysylac pozadana konfiguracje - a nie w petli co przepelnienie wartosci countera!
 		  if(counter <= UINT16_MAX/8){
