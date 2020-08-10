@@ -321,7 +321,7 @@ static void User_Process(void)
     	if(newConfig == true){
 		  newConfig = false;
 		  sendData(whichServerReceivesConfiguration, sentConfigurationMsg, sizeof(sentConfigurationMsg));
-		  whichServerReceivesConfiguration++; //TODO prymitywnie, obu serverom po jednym sensorze
+		  whichServerReceivesConfiguration = (whichServerReceivesConfiguration+1)%2; //TODO prymitywnie, zamockowane
 		}
     	//TODO: wiadomosc z konfiguracja moze byc gubiona. rozwiazanie - ACK?
     	/* Wymiana danych dla konfiguracji zdalnej slave'a:

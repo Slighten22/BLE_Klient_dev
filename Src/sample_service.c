@@ -255,7 +255,7 @@ void sendData(uint8_t server_index, uint8_t* data_buffer, uint8_t Nb_bytes)
 	/* Klient wysyla dane do serwera */
 	//TODO wysylanie do konkretnego serwera (adres lub nazwa)
 	uint8_t server_ind = (server_index <= connectedDevicesCount ? server_index : connectedDevicesCount); /* Aby wyslac do polaczonego servera */
-    aci_gatt_write_without_response(foundDevices[server_ind].connHandle, rxHandles[server_ind]+1, Nb_bytes, data_buffer); /* Max 20 bajtow na jedno wywolanie funkcji, serwer nie potwierdza otrzymania pakietu */
+	aci_gatt_write_without_response(foundDevices[server_ind].connHandle, rxHandles[server_ind]+1, Nb_bytes, data_buffer); /* Max 20 bajtow na jedno wywolanie funkcji, serwer nie potwierdza otrzymania pakietu */
 	//aci_gatt_write_charac_value(connection_handle, rx_handle+1, Nb_bytes, data_buffer); /* The client provides a handle and the contents of the value (up to ATT_MTU-3 bytes, because the handle and the ATT operation code are included in the packet with the data) and the server will !acknowledge the write operation with a response! */
 	//aci_gatt_write_long_charac_val(connection_handle, rx_handle+1, 0, Nb_bytes, data_buffer); /* This permits a client to write more than ATT_MTU-3 bytes of data into a server’s characteristic value or descriptor. It works by queueing several prepare write operations, each of which includes an offset and the data itself, and then finally writing them all atomically with an execute write operation. */
 }

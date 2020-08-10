@@ -97,11 +97,13 @@ void HAL_UART_MspInit(UART_HandleTypeDef* huart)
     __HAL_RCC_USART3_CLK_ENABLE();
   
     __HAL_RCC_GPIOC_CLK_ENABLE();
+    //! zmiana: USART3 zamiast na PC4(TX) i PC5(RX) jest na PC10(TX) i PC11(RX)
     /**USART3 GPIO Configuration    
-    PC4     ------> USART3_TX
-    PC5     ------> USART3_RX 
+    PC10 (prev. PC4)     ------> USART3_TX
+    PC11 (prev. PC5)     ------> USART3_RX
     */
-    GPIO_InitStruct.Pin = GPIO_PIN_4|GPIO_PIN_5;
+//    GPIO_InitStruct.Pin = GPIO_PIN_4|GPIO_PIN_5;
+    GPIO_InitStruct.Pin = GPIO_PIN_10|GPIO_PIN_11;
     GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
     GPIO_InitStruct.Pull = GPIO_NOPULL;
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
@@ -109,7 +111,9 @@ void HAL_UART_MspInit(UART_HandleTypeDef* huart)
     HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
   /* USER CODE BEGIN USART3_MspInit 1 */
-
+  /* USART3 interrupt Init */
+  HAL_NVIC_SetPriority(USART3_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(USART3_IRQn);
   /* USER CODE END USART3_MspInit 1 */
   }
 
@@ -132,13 +136,15 @@ void HAL_UART_MspDeInit(UART_HandleTypeDef* huart)
     __HAL_RCC_USART3_CLK_DISABLE();
   
     /**USART3 GPIO Configuration    
-    PC4     ------> USART3_TX
-    PC5     ------> USART3_RX 
-    */
-    HAL_GPIO_DeInit(GPIOC, GPIO_PIN_4|GPIO_PIN_5);
+        PC10 (prev. PC4)     ------> USART3_TX
+        PC11 (prev. PC5)     ------> USART3_RX
+	*/
+//    HAL_GPIO_DeInit(GPIOC, GPIO_PIN_4|GPIO_PIN_5);
+    HAL_GPIO_DeInit(GPIOC, GPIO_PIN_10|GPIO_PIN_11);
 
   /* USER CODE BEGIN USART3_MspDeInit 1 */
-
+  /* USART3 interrupt DeInit */
+  HAL_NVIC_DisableIRQ(USART3_IRQn);
   /* USER CODE END USART3_MspDeInit 1 */
   }
 

@@ -64,6 +64,7 @@ uint8_t dataBLE[MAX_MSGS][MSG_LEN];
 uint8_t sentConfigurationMsg[MSG_LEN];
 FoundDeviceInfo foundDevices[MAX_CONNECTIONS];
 char uartData[BUF_LEN];
+uint8_t uartRcv[BUF_LEN];
 bool newConfig;
 
 /* USER CODE END PV */
@@ -123,6 +124,15 @@ int main(void)
   MX_USART3_UART_Init();
   MX_BlueNRG_MS_Init();
   /* USER CODE BEGIN 2 */
+
+
+
+  //TODO: ilosc znakow po ktorych jest generowane przerwanie
+  HAL_UART_Receive_IT(&huart3, uartRcv, 11);
+
+
+
+
   /* USER CODE END 2 */
 
   /* USER CODE BEGIN RTOS_MUTEX */
@@ -358,17 +368,26 @@ void AskForDataTaskThread(void const * argument)
 		xTaskNotifyWait(pdFALSE, 0xFF, &notifValue, portMAX_DELAY);
 		if((notifValue&0x01) != 0x00) //Sprawdza czy notifValue zawiera wartosc ktora wyslal task supervisora
 		{
-		  //prymitywne wyslanie danych konfiguracji (docelowo bedzie do tego interfejs)
+		  //TODO prymitywne wyslanie danych konfiguracji (docelowo bedzie do tego interfejs)
 		  //chyba juz tu powinno byc wskazane do ktorego servera ma trafic konf.
 		  //!zwrocic uwage na delay glownego taska i wartosc countera!
-		  if(counter == UINT16_MAX/16){
+		  if(counter == 1*(UINT16_MAX/32)){
 			  prepareNewConfig(DHT22, 4, (uint8_t *)"Biurko");
 		  }
-		  if(counter == UINT16_MAX/8){
+		  if(counter == 2*(UINT16_MAX/32)){
 			  prepareNewConfig(DHT22, 5, (uint8_t *)"Okno");
 		  }
+		  if(counter == 3*(UINT16_MAX/32)){
+			  prepareNewConfig(DHT22, 5, (uint8_t *)"Okno");
+		  }
+		  if(counter == 4*(UINT16_MAX/32)){
+			  prepareNewConfig(DHT22, 5, (uint8_t *)"Blat");
+		  }
+		  if(counter == 5*(UINT16_MAX/32)){
+			  prepareNewConfig(DHT22, 5, (uint8_t *)"Drzwi");
+		  }
 		  //uwazac zeby tylko raz wysylac pozadana konfiguracje - a nie w petli co przepelnienie wartosci countera!
-		  if(counter <= UINT16_MAX/8){
+		  if(counter <= UINT16_MAX/2){
 			  counter++;
 		  }
 
@@ -565,6 +584,15 @@ void printConnectedDevicesTree(void){
 //							sizeof("Wilgotnosc\t %hu.%hu%%\r\n")+2*sizeof(uint16_t), 10);
 
 }
+
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
+	if(huart->Instance == USART3){
+		printf("\r\nReceived message: %s\r\n", uartRcv);
+		memset(uartRcv, 0, sizeof(uartRcv));
+		HAL_UART_Receive_IT(&huart3, uartRcv, 11); // Ponowne wlaczenie nasluchiwania TODO liczba odbieranych znakow
+	}
+}
+
 /* USER CODE END 7 */
 
 /**
