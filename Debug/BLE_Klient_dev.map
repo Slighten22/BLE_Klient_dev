@@ -4479,7 +4479,7 @@ OUTPUT(BLE_Klient_dev.elf elf32-littlearm)
  .debug_ranges  0x000020d8       0x18 Src\system_stm32l4xx.o
  .debug_ranges  0x000020f0       0x20 startup\startup_stm32l476xx.o
 
-.debug_line     0x00000000    0x112f4
+.debug_line     0x00000000    0x112f2
  .debug_line    0x00000000      0x5b4 Drivers\STM32L4xx_HAL_Driver\stm32l4xx_hal.o
  .debug_line    0x000005b4      0x582 Drivers\STM32L4xx_HAL_Driver\stm32l4xx_hal_cortex.o
  .debug_line    0x00000b36      0x492 Drivers\STM32L4xx_HAL_Driver\stm32l4xx_hal_exti.o
@@ -4504,19 +4504,19 @@ OUTPUT(BLE_Klient_dev.elf elf32-littlearm)
  .debug_line    0x0000b3e7      0x45e Middlewares\FreeRTOS\port.o
  .debug_line    0x0000b845      0xa6a Middlewares\FreeRTOS\queue.o
  .debug_line    0x0000c2af      0xd5e Middlewares\FreeRTOS\tasks.o
- .debug_line    0x0000d00d      0x788 Src\app_x-cube-ble1.o
- .debug_line    0x0000d795      0x482 Src\freertos.o
- .debug_line    0x0000dc17      0x57f Src\hci_tl_interface.o
- .debug_line    0x0000e196      0xb6d Src\main.o
- .debug_line    0x0000ed03      0xa12 Src\sample_service.o
- .debug_line    0x0000f715      0x3e5 Src\stm32l4xx_hal_msp.o
- .debug_line    0x0000fafa      0x36d Src\stm32l4xx_hal_timebase_tim.o
- .debug_line    0x0000fe67      0x3f3 Src\stm32l4xx_it.o
- .debug_line    0x0001025a      0x54d Src\stm32l4xx_nucleo.o
- .debug_line    0x000107a7      0x3eb Src\stm32l4xx_nucleo_bus.o
- .debug_line    0x00010b92      0x3bb Src\syscalls.o
- .debug_line    0x00010f4d      0x329 Src\system_stm32l4xx.o
- .debug_line    0x00011276       0x7e startup\startup_stm32l476xx.o
+ .debug_line    0x0000d00d      0x786 Src\app_x-cube-ble1.o
+ .debug_line    0x0000d793      0x482 Src\freertos.o
+ .debug_line    0x0000dc15      0x57f Src\hci_tl_interface.o
+ .debug_line    0x0000e194      0xb6d Src\main.o
+ .debug_line    0x0000ed01      0xa12 Src\sample_service.o
+ .debug_line    0x0000f713      0x3e5 Src\stm32l4xx_hal_msp.o
+ .debug_line    0x0000faf8      0x36d Src\stm32l4xx_hal_timebase_tim.o
+ .debug_line    0x0000fe65      0x3f3 Src\stm32l4xx_it.o
+ .debug_line    0x00010258      0x54d Src\stm32l4xx_nucleo.o
+ .debug_line    0x000107a5      0x3eb Src\stm32l4xx_nucleo_bus.o
+ .debug_line    0x00010b90      0x3bb Src\syscalls.o
+ .debug_line    0x00010f4b      0x329 Src\system_stm32l4xx.o
+ .debug_line    0x00011274       0x7e startup\startup_stm32l476xx.o
 
 .debug_str      0x00000000     0xb85a
  .debug_str     0x00000000      0xe39 Drivers\STM32L4xx_HAL_Driver\stm32l4xx_hal.o

@@ -182,7 +182,7 @@ void Make_Connection(void)
  * @retval none
  */
 void Pair_Devices(void){
-	tBleStatus ret = aci_gap_send_pairing_request(/*conn_handle*/foundDevices[pairedDevicesCount].connHandle, /*force_rebond*/0x01);
+	tBleStatus ret = aci_gap_send_pairing_request(/*conn_handle*/foundDevices[pairedDevicesCount].connHandle, /*force_rebond*/0x00);
 	//0x00: Pairing request is sent only if the device has not previously bonded
 	//0x01: Pairing request will be sent even if the device was previously bonded
 	if (ret != BLE_STATUS_SUCCESS) {

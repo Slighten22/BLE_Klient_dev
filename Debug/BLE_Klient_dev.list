@@ -35,13 +35,13 @@ Idx Name          Size      VMA       LMA       File off  Algn
                   CONTENTS, READONLY, DEBUGGING
  15 .debug_ranges 00002110  00000000  00000000  000752b0  2**3
                   CONTENTS, READONLY, DEBUGGING
- 16 .debug_line   000112f4  00000000  00000000  000773c0  2**0
+ 16 .debug_line   000112f2  00000000  00000000  000773c0  2**0
                   CONTENTS, READONLY, DEBUGGING
- 17 .debug_str    0000b85a  00000000  00000000  000886b4  2**0
+ 17 .debug_str    0000b85a  00000000  00000000  000886b2  2**0
                   CONTENTS, READONLY, DEBUGGING
- 18 .comment      0000007c  00000000  00000000  00093f0e  2**0
+ 18 .comment      0000007c  00000000  00000000  00093f0c  2**0
                   CONTENTS, READONLY
- 19 .debug_frame  0000641c  00000000  00000000  00093f8c  2**2
+ 19 .debug_frame  0000641c  00000000  00000000  00093f88  2**2
                   CONTENTS, READONLY, DEBUGGING
 
 Disassembly of section .text:
@@ -13320,7 +13320,7 @@ static void User_Init(void)
  8005eac:	0800d0ba 	.word	0x0800d0ba
  8005eb0:	0800d0cc 	.word	0x0800d0cc
  8005eb4:	0800d0de 	.word	0x0800d0de
- 8005eb8:	000cb08d 	.word	0x000cb08d
+ 8005eb8:	000992f9 	.word	0x000992f9
  8005ebc:	0800d0fc 	.word	0x0800d0fc
 
 08005ec0 <MX_BlueNRG_MS_Process>:
@@ -16112,13 +16112,13 @@ void Make_Connection(void)
  */
 void Pair_Devices(void){
  800725c:	b510      	push	{r4, lr}
-	tBleStatus ret = aci_gap_send_pairing_request(/*conn_handle*/foundDevices[pairedDevicesCount].connHandle, /*force_rebond*/0x01);
+	tBleStatus ret = aci_gap_send_pairing_request(/*conn_handle*/foundDevices[pairedDevicesCount].connHandle, /*force_rebond*/0x00);
  800725e:	4c0a      	ldr	r4, [pc, #40]	; (8007288 <Pair_Devices+0x2c>)
  8007260:	4a0a      	ldr	r2, [pc, #40]	; (800728c <Pair_Devices+0x30>)
  8007262:	7823      	ldrb	r3, [r4, #0]
  8007264:	21b8      	movs	r1, #184	; 0xb8
  8007266:	fb01 2303 	mla	r3, r1, r3, r2
- 800726a:	2101      	movs	r1, #1
+ 800726a:	2100      	movs	r1, #0
  800726c:	8a98      	ldrh	r0, [r3, #20]
  800726e:	f7fc fe30 	bl	8003ed2 <aci_gap_send_pairing_request>
 	//0x00: Pairing request is sent only if the device has not previously bonded

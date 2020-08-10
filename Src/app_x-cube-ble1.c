@@ -209,10 +209,9 @@ void MX_BlueNRG_MS_Init(void)
                                      NULL, /* no OOB data */
                                      7, /* Min. encryption key size */
                                      16,/* Max. encryption key size */
-                                     USE_FIXED_PIN_FOR_PAIRING, /* !! opcja DONOT_USE_FIXED_PIN_... */
-                                     831629, /* a moze byc 0 gdy opcja ^ */
+                                     USE_FIXED_PIN_FOR_PAIRING, /* jest tez opcja DONOT_USE_FIXED_PIN_... */
+                                     627449, /* a moze byc 0 gdy opcja ^ */
                                      BONDING); /*!!bonding is enabled  => jak sie ylaczy bonding, to za kazdym razem jest parowanie od nowa */
-//									 NO_BONDING);
   if (ret == BLE_STATUS_SUCCESS) {
     printf("BLE Stack Initialized.\r\n\r\n");
   }
