@@ -585,9 +585,30 @@ void printConnectedDevicesTree(void){
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 	if(huart->Instance == USART3){
-		printf("\r\nReceived message: %s\r\n", uartRcv);
+		//Format wiadomosci: nazwa_urzadzenia \0 nazwa_czujnika \0 interwal \0
+		uint8_t ind = 0; uint8_t deviceName[MAX_NAME_LEN]; uint8_t sensorName[MAX_NAME_LEN]; uint8_t intervalChar[MAX_NAME_LEN];
+		memset(deviceName, 0, MAX_NAME_LEN);
+		memset(sensorName, 0, MAX_NAME_LEN);
+		memset(intervalChar, 0, MAX_NAME_LEN);
+		for(; ind < MAX_NAME_LEN && uartRcv[ind] != '\0'; ind++) { } //znajdz indeks pierwszego \0 (dla nazwy urzadzenia)
+		memcpy(deviceName, uartRcv, ind);
+		uint8_t start = ++ind;
+		for(; ind < start+MAX_NAME_LEN && uartRcv[ind] != '\0'; ind++) { } //znajdz indeks drugiego \0 (dla nazwy czujnika)
+		memcpy(sensorName, uartRcv+start, ind-start);
+		start = ++ind;
+		for(; ind < start+MAX_NAME_LEN && uartRcv[ind] != '\0'; ind++) { } //znajdz indeks trzeciego \0 (dla interwalu)
+		memcpy(intervalChar, uartRcv+start, ind-start);
+		uint8_t interval = 0;
+		if(ind-start == 1) { interval = intervalChar[0]-'0'; }
+		else { //przeksztalcenie stringa typu 123 na liczbe
+			uint8_t end = --ind;
+			for(; ind >= start; ind--) { interval += (intervalChar[ind-start]-'0')*(pow(10, end-ind)); }
+		}
+		printf("Received configuration: device name \"%s\" sensor name \"%s\" interval %hhu\r\n\r\n", deviceName, sensorName, interval);
+
+		//Ponowne wlaczenie nasluchiwania TODO liczba odbieranych znakow
 		memset(uartRcv, 0, sizeof(uartRcv));
-		HAL_UART_Receive_IT(&huart3, uartRcv, 11); // Ponowne wlaczenie nasluchiwania TODO liczba odbieranych znakow
+		HAL_UART_Receive_IT(&huart3, uartRcv, /*TODO*/11);
 	}
 }
 

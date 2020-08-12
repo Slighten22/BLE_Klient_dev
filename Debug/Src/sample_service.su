@@ -11,4 +11,4 @@ sample_service.c:312:6:GAP_ConnectionComplete_CB	32	static
 sample_service.c:337:6:GAP_DisconnectionComplete_CB	0	static
 sample_service.c:361:6:GATT_Notification_CB	40	static
 sample_service.c:386:6:GAP_AdvertisingReport_CB	64	dynamic
-sample_service.c:468:6:user_notify	8	static
+sample_service.c:466:6:user_notify	8	static

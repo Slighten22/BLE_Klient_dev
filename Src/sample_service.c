@@ -396,15 +396,12 @@ void GAP_AdvertisingReport_CB(le_advertising_info *adv_info){
 			}
 		}
 		if(isDeviceNew){
-			printf("New device found: %X\r\n\r\n", foundDeviceAddress[0]);
+			printf("New device found: "); for(int i=5; i>0; i--){ printf("%02X-", foundDeviceAddress[i]); }
+			printf("%02X\r\n\r\n", foundDeviceAddress[0]);
 			//zapisac nazwe urzadzenia
 			uint8_t name_len = adv_info->data_length-BD_ADDR_SIZE-RSSI_DETAILS_SIZE; //wybrac tylko bajty dot. nazwy
 			if(name_len > MAX_NAME_LEN) { name_len = MAX_NAME_LEN; }
 			else if(name_len < 0) { name_len = 0; }
-//			uint8_t device_name[name_len];
-//			memset(device_name, 0, name_len);
-//			memcpy(device_name, adv_info->data_RSSI+5, name_len); //nazwa urzadzenia przesunieta o 5 bajtow w data_RSSI[]
-//			printf("Device name: %s\r\n\r\n", (char *)device_name);
 			//dodac nowo znalezione urzadzenie do pomocniczej struktury, jesli przejdzie autoryzacje to zostanie dodane do znalezionych
 			tempDeviceInfo[tempDeviceInfoCount].deviceAddressType = adv_info->bdaddr_type;
 			memcpy(tempDeviceInfo[tempDeviceInfoCount].deviceAddress, adv_info->bdaddr, BD_ADDR_SIZE);
@@ -420,7 +417,6 @@ void GAP_AdvertisingReport_CB(le_advertising_info *adv_info){
 		memset(received_data, 0, data_len);
 		memcpy(received_data, adv_info->data_RSSI, data_len);
 		const uint8_t correct_pin[] = {'8','3','1','6','2','9'};
-		//TODO: sprawdzic jeszcze adres urzadzenia od ktorego przyszla SCAN_RSP (servery musza go wysylac)
 		tBDAddr rcv_device_addr; uint8_t rcv_pin[data_len-BD_ADDR_SIZE]; int8_t which_dev = -1;
 		memset(rcv_device_addr, 0, BD_ADDR_SIZE);
 		memcpy(rcv_device_addr, received_data, BD_ADDR_SIZE);
@@ -442,7 +438,9 @@ void GAP_AdvertisingReport_CB(le_advertising_info *adv_info){
 			if(foundDevicesCount+1<MAX_CONNECTIONS){ foundDevicesCount++; }
 		}
 		else{
-			printf("Wrong authentication data - connection will not be established\r\n\r\n");
+			printf("Wrong authentication data - connection with device ");
+			for(int i=5; i>0; i--){ printf("%02X-", tempDeviceInfo[which_dev].deviceAddress[i]); }
+			printf("%02X will not be established\r\n\r\n", tempDeviceInfo[which_dev].deviceAddress[0]);
 			if(which_dev != -1 && which_dev < MAX_CONNECTIONS){ //urzadzenie bylo znalezione, pin sie nie zgadzal - usuwamy jego dane
 				tempDeviceInfo[which_dev].deviceAddressType = 0;
 				memset(tempDeviceInfo[which_dev].deviceAddress, 0, BD_ADDR_SIZE);
