@@ -126,10 +126,8 @@ int main(void)
   /* USER CODE BEGIN 2 */
 
 
-
   //TODO: ilosc znakow po ktorych jest generowane przerwanie
-  HAL_UART_Receive_IT(&huart3, uartRcv, 11);
-
+  HAL_UART_Receive_IT(&huart3, uartRcv, /*TODO*/11);
 
 
 

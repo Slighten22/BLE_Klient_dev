@@ -53,6 +53,7 @@
  * @{
  */
 #define RSSI_DETAILS_SIZE 8
+#define PIN_LEN 6
 
 /** @defgroup SAMPLE_SERVICE_Private_Variables
  * @{
@@ -86,6 +87,8 @@ uint16_t sampleServHandle, TXCharHandle, RXCharHandle;
 //typedef-y do struktur -> w .h
 //FoundDeviceInfo foundDevices[MAX_CONNECTIONS]; //main.cpp
 uint8_t foundDevicesCount = 0;
+uint8_t tempDeviceInfoCount = 0;
+FoundDeviceInfo tempDeviceInfo[MAX_CONNECTIONS];
 
 /**
  * @}
@@ -393,37 +396,65 @@ void GAP_AdvertisingReport_CB(le_advertising_info *adv_info){
 			}
 		}
 		if(isDeviceNew){
-			printf("New device found!\r\n\r\n");
+			printf("New device found: %X\r\n\r\n", foundDeviceAddress[0]);
 			//zapisac nazwe urzadzenia
 			uint8_t name_len = adv_info->data_length-BD_ADDR_SIZE-RSSI_DETAILS_SIZE; //wybrac tylko bajty dot. nazwy
-			uint8_t device_name[name_len];
-			memset(device_name, 0, name_len);
-			memcpy(device_name, adv_info->data_RSSI+5, name_len); //nazwa urzadzenia przesunieta o 5 bajtow w data_RSSI[]
-			//dodac nowo znalezione urzadzenie do tablicy pamietanych urzadzen, zwiekszyc liczbe pamietanych urzadzen
-			foundDevices[foundDevicesCount].deviceAddressType = adv_info->bdaddr_type;
-			memcpy(foundDevices[foundDevicesCount].deviceAddress, adv_info->bdaddr, BD_ADDR_SIZE);
-			//nazwa i status
 			if(name_len > MAX_NAME_LEN) { name_len = MAX_NAME_LEN; }
-			memcpy(foundDevices[foundDevicesCount].deviceName, adv_info->data_RSSI+5, name_len);
+			else if(name_len < 0) { name_len = 0; }
+//			uint8_t device_name[name_len];
+//			memset(device_name, 0, name_len);
+//			memcpy(device_name, adv_info->data_RSSI+5, name_len); //nazwa urzadzenia przesunieta o 5 bajtow w data_RSSI[]
+//			printf("Device name: %s\r\n\r\n", (char *)device_name);
+			//dodac nowo znalezione urzadzenie do pomocniczej struktury, jesli przejdzie autoryzacje to zostanie dodane do znalezionych
+			tempDeviceInfo[tempDeviceInfoCount].deviceAddressType = adv_info->bdaddr_type;
+			memcpy(tempDeviceInfo[tempDeviceInfoCount].deviceAddress, adv_info->bdaddr, BD_ADDR_SIZE);
+			//nazwa i status
+			memset(tempDeviceInfo[tempDeviceInfoCount].deviceName, 0, MAX_NAME_LEN);
+			memcpy(tempDeviceInfo[tempDeviceInfoCount].deviceName, adv_info->data_RSSI+5, name_len);
+			if(tempDeviceInfoCount+1<MAX_CONNECTIONS) { tempDeviceInfoCount++; }
+		}
+	} /* evt_type == ADV_IND */
+	else if(adv_info->evt_type == SCAN_RSP && adv_info->data_length > BD_ADDR_SIZE){
+		uint8_t data_len = adv_info->data_length;
+		uint8_t received_data[data_len];
+		memset(received_data, 0, data_len);
+		memcpy(received_data, adv_info->data_RSSI, data_len);
+		const uint8_t correct_pin[] = {'8','3','1','6','2','9'};
+		//TODO: sprawdzic jeszcze adres urzadzenia od ktorego przyszla SCAN_RSP (servery musza go wysylac)
+		tBDAddr rcv_device_addr; uint8_t rcv_pin[data_len-BD_ADDR_SIZE]; int8_t which_dev = -1;
+		memset(rcv_device_addr, 0, BD_ADDR_SIZE);
+		memcpy(rcv_device_addr, received_data, BD_ADDR_SIZE);
+		memset(rcv_pin, 0, data_len-BD_ADDR_SIZE);
+		memcpy(rcv_pin, received_data+BD_ADDR_SIZE, data_len-BD_ADDR_SIZE);
+		for(int i=0; i<tempDeviceInfoCount; i++){
+			if(memcmp(rcv_device_addr, tempDeviceInfo[i].deviceAddress, BD_ADDR_SIZE) == 0) { which_dev = i; }
+		}
+		//sprawdzic, czy zgodny pin i czy znamy ten adres urzadzenia
+		if(which_dev != -1 && memcmp(rcv_pin, correct_pin, sizeof(correct_pin)) == 0) {
+			//pin i adres urzadzenia OK - kopiujemy dane urzadzenia do znalezionych urzadzen
+			foundDevices[foundDevicesCount].deviceAddressType = tempDeviceInfo[which_dev].deviceAddressType;
+			memcpy(foundDevices[foundDevicesCount].deviceAddress, tempDeviceInfo[which_dev].deviceAddress, BD_ADDR_SIZE);
+			//nazwa i status
+			uint8_t name_len = MAX_NAME_LEN;
+			for(int i=0; i<MAX_NAME_LEN; i++) { if(tempDeviceInfo[which_dev].deviceName[i] == 0) name_len = i; }
+			memcpy(foundDevices[foundDevicesCount].deviceName, tempDeviceInfo[which_dev].deviceName, name_len);
 			foundDevices[foundDevicesCount].connStatus = READY_TO_CONNECT;
 			if(foundDevicesCount+1<MAX_CONNECTIONS){ foundDevicesCount++; }
 		}
-	} /* evt_type == ADV_IND */
-	else if(adv_info->evt_type == SCAN_RSP){
-		uint8_t pin_len = adv_info->data_length;
-		uint8_t received_pin[pin_len];
-		memset(received_pin, 0, pin_len);
-		memcpy(received_pin, adv_info->data_RSSI, pin_len);
-		const uint8_t correct_pin[6] = {'8','3','1','6','2','9'};
-		if(memcmp(received_pin, correct_pin, pin_len) != 0){
-			//pin nie zgadza sie = nie chcemy sie laczyc z tym urzadzeniem = usuwamy je z foundDevices[] i czyscimy jego dane
-			printf("Wrong authentication code from device %d - unable to connect\r\n\r\n", foundDevicesCount);
-			foundDevices[foundDevicesCount].deviceAddressType = 0;
-			memset(foundDevices[foundDevicesCount].deviceAddress, 0, BD_ADDR_SIZE);
-			memset(foundDevices[foundDevicesCount].deviceName, 0, MAX_NAME_LEN);
-			foundDevices[foundDevicesCount].connStatus = DISCONNECTED;
-			if(foundDevicesCount > 0){ foundDevicesCount--; } //ew. sprawdzic czy nie usuwamy ostatniego urzadzenia
+		else{
+			printf("Wrong authentication data - connection will not be established\r\n\r\n");
+			if(which_dev != -1 && which_dev < MAX_CONNECTIONS){ //urzadzenie bylo znalezione, pin sie nie zgadzal - usuwamy jego dane
+				tempDeviceInfo[which_dev].deviceAddressType = 0;
+				memset(tempDeviceInfo[which_dev].deviceAddress, 0, BD_ADDR_SIZE);
+				memset(tempDeviceInfo[which_dev].deviceName, 0, MAX_NAME_LEN);
+				tempDeviceInfo[which_dev].connStatus = DISCONNECTED;
+				if(tempDeviceInfoCount > 0) { tempDeviceInfoCount--; }
+			}
 		}
+	}
+	else if(adv_info->evt_type == SCAN_RSP && adv_info->data_length <= BD_ADDR_SIZE){
+		printf("Wrong authentication data - connection will not be established\r\n\r\n");
+		if(tempDeviceInfoCount > 0) { tempDeviceInfoCount--; }
 	}
 }
 
