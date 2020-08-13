@@ -315,22 +315,21 @@ static void User_Process(void)
     }
 
     /* Klient wysyla dane konfiguracji serwerowi */
+    /* Wymiana danych dla konfiguracji zdalnej slave'a:
+	 * 1. master wysyla do slave'a info o konfiguracji w odpowiednim formacie (np. sekwencja rodzaj_sensora adres_pinu)
+	 * 2. slave przeparsuje sobie ta konfiguracje i odczyta info jakie ma sensory i na jakich pinach
+	 * 3. slave wywola funckje do odczytania z tych sensorow ktore dostal w konfiguracji
+	 * 4. funkcja od odczytywania z wielu sensorow da znac (?) gdy bedzie miec juz wszystkie dane
+	 * 5. slave wysle odpowiednia liczbe bajtow danych (obliczona wczesniej na podst. konfiguracji) masterowi
+	 * */
     if(client_ready)
     {
-//		static uint8_t whichServerReceivesConfiguration = 0;
     	if(newConfig == true){
 		  newConfig = false;
 		  sendData(whichServerReceivesConfiguration, sentConfigurationMsg, sizeof(sentConfigurationMsg));
-		  whichServerReceivesConfiguration = (whichServerReceivesConfiguration+1)%2; //TODO prymitywnie, zamockowane
+		  //TODO: wiadomosc z konfiguracja moze byc gubiona. rozwiazanie - ACK?
+//		  whichServerReceivesConfiguration = (whichServerReceivesConfiguration+1)%2; //TODO prymitywnie, zamockowane
 		}
-    	//TODO: wiadomosc z konfiguracja moze byc gubiona. rozwiazanie - ACK?
-    	/* Wymiana danych dla konfiguracji zdalnej slave'a:
-    	 * 1. master wysyla do slave'a info o konfiguracji w odpowiednim formacie (np. sekwencja rodzaj_sensora adres_pinu)
-    	 * 2. slave przeparsuje sobie ta konfiguracje i odczyta info jakie ma sensory i na jakich pinach
-    	 * 3. slave wywola funckje do odczytania z tych sensorow ktore dostal w konfiguracji
-    	 * 4. funkcja od odczytywania z wielu sensorow da znac (?) gdy bedzie miec juz wszystkie dane
-    	 * 5. slave wysle odpowiednia liczbe bajtow danych (obliczona wczesniej na podst. konfiguracji) masterowi
-    	 * */
     }
 
     if (all_servers_connected && all_tx_char_handles_read && all_rx_char_handles_read && all_notifications_enabled && !client_ready)

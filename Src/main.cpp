@@ -62,10 +62,11 @@ uint8_t whichLoopIteration;
 uint8_t whichServerReceivesConfiguration;
 uint8_t dataBLE[MAX_MSGS][MSG_LEN];
 uint8_t sentConfigurationMsg[MSG_LEN];
+uint8_t uartRcv[RCV_CONFIG_MSG_LEN];
 FoundDeviceInfo foundDevices[MAX_CONNECTIONS];
 char uartData[BUF_LEN];
-uint8_t uartRcv[BUF_LEN];
 bool newConfig;
+bool promptForInitConfig;
 
 /* USER CODE END PV */
 
@@ -81,7 +82,7 @@ void PresentationTaskThread(void const * argument);
 void CommunicationTaskThread(void const * argument);
 void presentDataFromSensor(uint8_t which);
 void delayMicroseconds(uint32_t us);
-void prepareNewConfig(uint8_t sensorType, uint16_t interval, uint8_t *name);
+void prepareNewConfig(uint8_t deviceInd, uint8_t sensorType, uint16_t interval, uint8_t *name);
 bool checkIfTempSensorReadoutCorrect(uint32_t dataBits, uint8_t checksumBits);
 void printConnectedDevicesTree(void);
 void updateReadoutValues(void);
@@ -127,8 +128,8 @@ int main(void)
 
 
   //TODO: ilosc znakow po ktorych jest generowane przerwanie
-  HAL_UART_Receive_IT(&huart3, uartRcv, /*TODO*/11);
-
+  HAL_UART_Receive_IT(&huart3, uartRcv, RCV_CONFIG_MSG_LEN);
+  promptForInitConfig = true;
 
 
   /* USER CODE END 2 */
@@ -366,38 +367,26 @@ void AskForDataTaskThread(void const * argument)
 		xTaskNotifyWait(pdFALSE, 0xFF, &notifValue, portMAX_DELAY);
 		if((notifValue&0x01) != 0x00) //Sprawdza czy notifValue zawiera wartosc ktora wyslal task supervisora
 		{
-		  //TODO prymitywne wyslanie danych konfiguracji (docelowo bedzie do tego interfejs)
-		  //chyba juz tu powinno byc wskazane do ktorego servera ma trafic konf.
-		  //!zwrocic uwage na delay glownego taska i wartosc countera!
-		  if(counter == 1*(UINT16_MAX/32)){
-			  prepareNewConfig(DHT22, 4, (uint8_t *)"Biurko");
+		  MX_BlueNRG_MS_Process();
+		  xSemaphoreTake(newDataMutexHandle, DELAY_TIME);
+		  //Uruchom task prezentacji tylko wtedy, gdy przyjda nowe dane i na poczatku, zeby zachecic do dodania nowej konfiguracji
+		  if(newData || promptForInitConfig){
+		  	  //Wyslij sygnal do taska od prezentacji ze powinien teraz sie uruchomic
+			  xTaskNotify(presentationTaskHandle, 0x02, eSetBits);
 		  }
-		  if(counter == 2*(UINT16_MAX/32)){
-			  prepareNewConfig(DHT22, 5, (uint8_t *)"Okno");
-		  }
-		  if(counter == 3*(UINT16_MAX/32)){
-			  prepareNewConfig(DHT22, 5, (uint8_t *)"Okno");
-		  }
-		  if(counter == 4*(UINT16_MAX/32)){
-			  prepareNewConfig(DHT22, 5, (uint8_t *)"Blat");
-		  }
-		  if(counter == 5*(UINT16_MAX/32)){
-			  prepareNewConfig(DHT22, 5, (uint8_t *)"Drzwi");
-		  }
-		  //uwazac zeby tylko raz wysylac pozadana konfiguracje - a nie w petli co przepelnienie wartosci countera!
-		  if(counter <= UINT16_MAX/2){
-			  counter++;
-		  }
+		  xSemaphoreGive(newDataMutexHandle);
 
-	      MX_BlueNRG_MS_Process();
+		  //prymitywne wysylanie konfig. - !zwrocic uwage na delay glownego taska i wartosc countera!
+//		  if(counter == 1*(UINT16_MAX/32)){ prepareNewConfig(0/*serverInd*/, DHT22, 4, (uint8_t *)"Biurko"); }
+//		  if(counter == 2*(UINT16_MAX/32)){ prepareNewConfig(1, DHT22, 5, (uint8_t *)"Okno"); }
+//		  if(counter == 3*(UINT16_MAX/32)){ prepareNewConfig(0, DHT22, 5, (uint8_t *)"Okno"); }
+//		  if(counter == 4*(UINT16_MAX/32)){ prepareNewConfig(1, DHT22, 5, (uint8_t *)"Blat"); }
+//		  if(counter == 5*(UINT16_MAX/32)){ prepareNewConfig(0, DHT22, 5, (uint8_t *)"Drzwi");}
+//		  //uwazac zeby tylko raz wysylac pozadana konfiguracje - a nie w petli co przepelnienie wartosci countera!
+//		  if(counter <= UINT16_MAX/2){
+//			  counter++;
+//		  }
 
-	      //!
-	      xSemaphoreTake(newDataMutexHandle, DELAY_TIME);
-	      if(newData){ //uruchom task prezentacji tylko wtedy, gdy przyjda nowe dane
-	       	  //Wyslij sygnal do taska od prezentacji ze powinien teraz sie uruchomic
-	    	  xTaskNotify(presentationTaskHandle, 0x02, eSetBits);
-	      }
-	      xSemaphoreGive(newDataMutexHandle);
 		}
 	}
 }
@@ -448,13 +437,14 @@ void delayMicroseconds(uint32_t us){
 	//UINT_MAX	Maximum value for a variable of type unsigned int	4,294,967,295 (0xffffffff)
 }
 
-void prepareNewConfig(uint8_t sensorType, uint16_t interval, uint8_t *name){
+//Parametry: do ktorego urzadzenia (indeks w foundDevices[]) wysylamy konf., typ sensora (DHT22), interwal odczytu, nazwa sensora
+void prepareNewConfig(uint8_t deviceInd, uint8_t sensorType, uint16_t interval, uint8_t *name){
 	/* Format wiadomosci: <typ_sensora:1B> <interwal:2B> <nazwa:max.14B> */
 	int i=0;
 	memset(sentConfigurationMsg, 0x0, sizeof(sentConfigurationMsg));
 	sentConfigurationMsg[0] = sensorType;
-	sentConfigurationMsg[1] = interval/256;
-	sentConfigurationMsg[2] = interval%256;
+	sentConfigurationMsg[1] = interval/16; //16 nie 256!
+	sentConfigurationMsg[2] = interval%16;
 	for(i=3; name[i-3] != '\0' && i<MSG_LEN; i++){
 		sentConfigurationMsg[i] = name[i-3];
 	}
@@ -462,12 +452,14 @@ void prepareNewConfig(uint8_t sensorType, uint16_t interval, uint8_t *name){
 		sentConfigurationMsg[i] = '\0';
 	}
 	newConfig = true;
-	//wpisywanie do foundDevices informacji o nowo wyslanym czujniku TODO wysylka do konkretnego servera
-    uint8_t connSensorsCnt = foundDevices[whichServerReceivesConfiguration].connSensorsCount;
-	memcpy(foundDevices[whichServerReceivesConfiguration].connSensors[connSensorsCnt].sensorName, name, i-3);
-	foundDevices[whichServerReceivesConfiguration].connSensors[connSensorsCnt].lastTempValue = 0.0F;
-	foundDevices[whichServerReceivesConfiguration].connSensors[connSensorsCnt].lastHumidValue = 0.0F;
-	foundDevices[whichServerReceivesConfiguration].connSensorsCount++;
+	//wpisywanie do foundDevices informacji o nowo wyslanym czujniku
+	//TODO wpisywanie dopiero gdy mamy pewnosc ze konf. dotarla do serv.?
+    uint8_t connSensorsCnt = foundDevices[deviceInd].connSensorsCount;
+	memcpy(foundDevices[deviceInd].connSensors[connSensorsCnt].sensorName, name, i-3);
+	foundDevices[deviceInd].connSensors[connSensorsCnt].lastTempValue = 0.0F;
+	foundDevices[deviceInd].connSensors[connSensorsCnt].lastHumidValue = 0.0F;
+	foundDevices[deviceInd].connSensorsCount++;
+	whichServerReceivesConfiguration = deviceInd;
 }
 
 bool checkIfTempSensorReadoutCorrect(uint32_t dataBits, uint8_t checksumBits){
@@ -516,7 +508,7 @@ void updateReadoutValues(void){
 
 void printConnectedDevicesTree(void){
 	//wypisz cale drzewo polaczen klienta
-	uint8_t len = 0; uint8_t pos = 0; char buf[60];
+	uint8_t len = 0; uint8_t pos = 0; char buf[60]; promptForInitConfig = false;
 	memset(uartData, 0x0, sizeof(uartData)); memset(buf, 0x0, sizeof(buf));
 	printf("=====\r\nUrzadzenie centralne (adres "); len = sprintf(buf, "=====<br>Urzadzenie centralne (adres ");
 	memcpy(uartData+pos, buf, len); pos += len;
@@ -538,6 +530,13 @@ void printConnectedDevicesTree(void){
 		}
 		printf("%02X)\r\n", foundDevices[k].deviceAddress[0]); len = sprintf(buf, "%02X)<br>", foundDevices[k].deviceAddress[0]);
 		memcpy(uartData+pos, buf, len); pos += len;
+		if(foundDevices[k].connSensorsCount == 0) {
+			printf("To urządzenie nie otrzymało jeszcze żadnych konfiguracji czujników\r\n\r\n");
+			len = sprintf(buf, "To urządzenie nie ma jeszcze dodanych żadnych czujników<br><br>");
+			memcpy(uartData+pos, buf, len); pos += len;
+		}
+		HAL_UART_Transmit(&huart3, (uint8_t *)uartData, pos, TRANSMIT_TIME);
+		memset(uartData, 0x0, sizeof(uartData)); memset(buf, 0x0, sizeof(buf)); len = 0; pos = 0;
 		for(int m=0; m<foundDevices[k].connSensorsCount; m++){
 			printf("Czujnik %s\r\n", foundDevices[k].connSensors[m].sensorName);
 			len =  sprintf(buf, "Czujnik %s<br>", foundDevices[k].connSensors[m].sensorName); memcpy(uartData+pos, buf, len);pos += len;
@@ -584,8 +583,9 @@ void printConnectedDevicesTree(void){
 }
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
-	if(huart->Instance == USART3){
-		//Format wiadomosci: nazwa_urzadzenia \0 nazwa_czujnika \0 interwal \0
+	if(huart->Instance == USART3){ //Odebrano wiadomosc z konfiguracja - wyciagnij info z wiadomosci i wyslij info do odp. servera
+		//Format wiadomosci: nazwa_urzadzenia \0 nazwa_czujnika \0 interwal \0 (TODO: i dopelnione \0 dla stalej dlugosci wiadomosci)
+		//TODO jakas weryfikacja tych danych konfiguracji - np. czy nazwa ma mniej niz 12 (dozwolonych) znakow, czy interwal <= 99 itd.
 		uint8_t ind = 0; uint8_t deviceName[MAX_NAME_LEN]; uint8_t sensorName[MAX_NAME_LEN]; uint8_t intervalChar[MAX_NAME_LEN];
 		memset(deviceName, 0, MAX_NAME_LEN);
 		memset(sensorName, 0, MAX_NAME_LEN);
@@ -606,9 +606,20 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 		}
 		printf("Received configuration: device name \"%s\" sensor name \"%s\" interval %hhu\r\n\r\n", deviceName, sensorName, interval);
 
-		//Ponowne wlaczenie nasluchiwania TODO liczba odbieranych znakow
+		//Wysylanie konfiguracji do odp. urzadzenia
+		uint8_t devInd = 0;
+		for(; devInd<foundDevicesCount; devInd++){ //Znajdz urzadzenie o odp. nazwie
+			if(memcmp(deviceName, foundDevices[devInd].deviceName, MAX_NAME_LEN) == 0) { break; }
+		}
+		if(devInd == foundDevicesCount){ //Nie znaleziono urzadzenia
+			printf("Device with given name \"%s\" does not exist - configuration will not be sent\r\n\r\n", deviceName);
+		} else {
+			prepareNewConfig(devInd, DHT22, interval, sensorName);
+		}
+
+		//Ponowne wlaczenie nasluchiwania
 		memset(uartRcv, 0, sizeof(uartRcv));
-		HAL_UART_Receive_IT(&huart3, uartRcv, /*TODO*/11);
+		HAL_UART_Receive_IT(&huart3, uartRcv, RCV_CONFIG_MSG_LEN);
 	}
 }
 

@@ -42,6 +42,7 @@ extern "C" {
 #define DELAY_TIME 3000 //Delay time between following reads in ms
 #define TRANSMIT_TIME 100 //Time for UART data transmission in ms
 #define MAX_NAME_LEN 12 //Sensor name max length (in characters)
+#define RCV_CONFIG_MSG_LEN 30 //Length of config message received via UART from RPi device
 
 typedef enum {
 	DHT22
