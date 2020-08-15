@@ -88,7 +88,8 @@ uint16_t sampleServHandle, TXCharHandle, RXCharHandle;
 //FoundDeviceInfo foundDevices[MAX_CONNECTIONS]; //main.cpp
 uint8_t foundDevicesCount = 0;
 uint8_t tempDeviceInfoCount = 0;
-FoundDeviceInfo tempDeviceInfo[MAX_CONNECTIONS];
+//mozemy znalezc i zapamietac wiecej urzadzen (czesc z nich nie przejdzie weryfikacji), polaczymy sie max z MAX_CONNECTIONS urzadzeniami
+FoundDeviceInfo tempDeviceInfo[2*MAX_CONNECTIONS];
 
 /**
  * @}
@@ -185,7 +186,7 @@ void Make_Connection(void)
  * @retval none
  */
 void Pair_Devices(void){
-	tBleStatus ret = aci_gap_send_pairing_request(/*conn_handle*/foundDevices[pairedDevicesCount].connHandle, /*force_rebond*/0x00);
+	tBleStatus ret = aci_gap_send_pairing_request(foundDevices[pairedDevicesCount].connHandle, /*force_rebond*/0x00);
 	//0x00: Pairing request is sent only if the device has not previously bonded
 	//0x01: Pairing request will be sent even if the device was previously bonded
 	if (ret != BLE_STATUS_SUCCESS) {
@@ -390,25 +391,31 @@ void GAP_AdvertisingReport_CB(le_advertising_info *adv_info){
 		tBDAddr foundDeviceAddress;
 		memset(foundDeviceAddress, 0, BD_ADDR_SIZE);
 		memcpy(foundDeviceAddress, adv_info->bdaddr, BD_ADDR_SIZE);
-		for(int i=0; i<foundDevicesCount; i++){
-			if(memcmp(foundDeviceAddress, foundDevices[i].deviceAddress, BD_ADDR_SIZE) == 0){
+		for(int i=0; i<tempDeviceInfoCount; i++){
+			if(memcmp(foundDeviceAddress, tempDeviceInfo[i].deviceAddress, BD_ADDR_SIZE) == 0){
 				isDeviceNew = false;
 			}
 		}
 		if(isDeviceNew){
 			printf("New device found: "); for(int i=5; i>0; i--){ printf("%02X-", foundDeviceAddress[i]); }
 			printf("%02X\r\n\r\n", foundDeviceAddress[0]);
-			//zapisac nazwe urzadzenia
-			uint8_t name_len = adv_info->data_length-BD_ADDR_SIZE-RSSI_DETAILS_SIZE; //wybrac tylko bajty dot. nazwy
-			if(name_len > MAX_NAME_LEN) { name_len = MAX_NAME_LEN; }
-			else if(name_len < 0) { name_len = 0; }
-			//dodac nowo znalezione urzadzenie do pomocniczej struktury, jesli przejdzie autoryzacje to zostanie dodane do znalezionych
-			tempDeviceInfo[tempDeviceInfoCount].deviceAddressType = adv_info->bdaddr_type;
-			memcpy(tempDeviceInfo[tempDeviceInfoCount].deviceAddress, adv_info->bdaddr, BD_ADDR_SIZE);
-			//nazwa i status
-			memset(tempDeviceInfo[tempDeviceInfoCount].deviceName, 0, MAX_NAME_LEN);
-			memcpy(tempDeviceInfo[tempDeviceInfoCount].deviceName, adv_info->data_RSSI+5, name_len);
-			if(tempDeviceInfoCount+1<MAX_CONNECTIONS) { tempDeviceInfoCount++; }
+			if(tempDeviceInfoCount+1<2*MAX_CONNECTIONS){
+				//zapisac nazwe urzadzenia
+				uint8_t name_len = adv_info->data_length-BD_ADDR_SIZE-RSSI_DETAILS_SIZE; //wybrac tylko bajty dot. nazwy
+				if(name_len > MAX_NAME_LEN) { name_len = MAX_NAME_LEN; }
+				else if(name_len < 0) { name_len = 0; }
+				//dodac nowo znalezione urzadzenie do pomocniczej struktury, jesli przejdzie autoryzacje to zostanie dodane do znalezionych
+				tempDeviceInfo[tempDeviceInfoCount].deviceAddressType = adv_info->bdaddr_type;
+				memcpy(tempDeviceInfo[tempDeviceInfoCount].deviceAddress, adv_info->bdaddr, BD_ADDR_SIZE);
+				//nazwa i status
+				memset(tempDeviceInfo[tempDeviceInfoCount].deviceName, 0, MAX_NAME_LEN);
+				memcpy(tempDeviceInfo[tempDeviceInfoCount].deviceName, adv_info->data_RSSI+5, name_len);
+				tempDeviceInfoCount++;
+			}
+			else{
+				printf("Device "); for(int i=5; i>0; i--){ printf("%02X-", foundDeviceAddress[i]); }
+				printf("%02X could not be connected - maximal number of connections reached!\r\n\r\n\r\n\r\n", foundDeviceAddress[0]);
+			}
 		}
 	} /* evt_type == ADV_IND */
 	else if(adv_info->evt_type == SCAN_RSP && adv_info->data_length > BD_ADDR_SIZE){
@@ -417,42 +424,48 @@ void GAP_AdvertisingReport_CB(le_advertising_info *adv_info){
 		memset(received_data, 0, data_len);
 		memcpy(received_data, adv_info->data_RSSI, data_len);
 		const uint8_t correct_pin[] = {'8','3','1','6','2','9'};
-		tBDAddr rcv_device_addr; uint8_t rcv_pin[data_len-BD_ADDR_SIZE]; int8_t which_dev = -1;
+		tBDAddr rcv_device_addr; uint8_t rcv_pin[data_len-BD_ADDR_SIZE]; int which_dev = -1; bool prev_added = false;
 		memset(rcv_device_addr, 0, BD_ADDR_SIZE);
 		memcpy(rcv_device_addr, received_data, BD_ADDR_SIZE);
 		memset(rcv_pin, 0, data_len-BD_ADDR_SIZE);
 		memcpy(rcv_pin, received_data+BD_ADDR_SIZE, data_len-BD_ADDR_SIZE);
-		for(int i=0; i<tempDeviceInfoCount; i++){
-			if(memcmp(rcv_device_addr, tempDeviceInfo[i].deviceAddress, BD_ADDR_SIZE) == 0) { which_dev = i; }
+		for(int i=0; i<tempDeviceInfoCount; i++){ //szukamy danych urzadzenia w tempInfo i upewniamy sie, ze nie ma go juz w foundDevices[]
+			if(memcmp(rcv_device_addr, tempDeviceInfo[i].deviceAddress, BD_ADDR_SIZE) == 0) {
+				which_dev = i;
+				for(int j=0; j<foundDevicesCount; j++){ //urzadzenie juz wczesniej autoryzowane - nie dodajemy go do znalezionych po raz drugi
+					if(memcmp(rcv_device_addr, foundDevices[j].deviceAddress, BD_ADDR_SIZE) == 0) { prev_added = true; }
+				}
+			}
 		}
 		//sprawdzic, czy zgodny pin i czy znamy ten adres urzadzenia
-		if(which_dev != -1 && memcmp(rcv_pin, correct_pin, sizeof(correct_pin)) == 0) {
-			//pin i adres urzadzenia OK - kopiujemy dane urzadzenia do znalezionych urzadzen
-			foundDevices[foundDevicesCount].deviceAddressType = tempDeviceInfo[which_dev].deviceAddressType;
-			memcpy(foundDevices[foundDevicesCount].deviceAddress, tempDeviceInfo[which_dev].deviceAddress, BD_ADDR_SIZE);
-			//nazwa i status
-			uint8_t name_len = MAX_NAME_LEN;
-			for(int i=0; i<MAX_NAME_LEN; i++) { if(tempDeviceInfo[which_dev].deviceName[i] == 0) name_len = i; }
-			memcpy(foundDevices[foundDevicesCount].deviceName, tempDeviceInfo[which_dev].deviceName, name_len);
-			foundDevices[foundDevicesCount].connStatus = READY_TO_CONNECT;
-			if(foundDevicesCount+1<MAX_CONNECTIONS){ foundDevicesCount++; }
-		}
-		else{
-			printf("Wrong authentication data - connection with device ");
-			for(int i=5; i>0; i--){ printf("%02X-", tempDeviceInfo[which_dev].deviceAddress[i]); }
-			printf("%02X will not be established\r\n\r\n", tempDeviceInfo[which_dev].deviceAddress[0]);
-			if(which_dev != -1 && which_dev < MAX_CONNECTIONS){ //urzadzenie bylo znalezione, pin sie nie zgadzal - usuwamy jego dane
-				tempDeviceInfo[which_dev].deviceAddressType = 0;
-				memset(tempDeviceInfo[which_dev].deviceAddress, 0, BD_ADDR_SIZE);
-				memset(tempDeviceInfo[which_dev].deviceName, 0, MAX_NAME_LEN);
-				tempDeviceInfo[which_dev].connStatus = DISCONNECTED;
-				if(tempDeviceInfoCount > 0) { tempDeviceInfoCount--; }
+		if(memcmp(rcv_pin, correct_pin, sizeof(correct_pin)) == 0 && which_dev != -1 && prev_added == false) {
+			printf("Device "); for(int i=5; i>0; i--){ printf("%02X-", tempDeviceInfo[which_dev].deviceAddress[i]); }
+			printf("%02X authenticated correctly\r\n\r\n", tempDeviceInfo[which_dev].deviceAddress[0]);
+			//pin i adres urzadzenia OK - kopiujemy dane urzadzenia do znalezionych urzadzen, o ile jest jeszcze miejsce (max. 8 polacz)
+			if(foundDevicesCount+1<MAX_CONNECTIONS){
+				foundDevices[foundDevicesCount].deviceAddressType = tempDeviceInfo[which_dev].deviceAddressType;
+				memcpy(foundDevices[foundDevicesCount].deviceAddress, tempDeviceInfo[which_dev].deviceAddress, BD_ADDR_SIZE);
+				//nazwa i status
+				uint8_t name_len = MAX_NAME_LEN;
+				for(int i=0; i<MAX_NAME_LEN; i++) { if(tempDeviceInfo[which_dev].deviceName[i] == 0) name_len = i; }
+				memcpy(foundDevices[foundDevicesCount].deviceName, tempDeviceInfo[which_dev].deviceName, name_len);
+				foundDevices[foundDevicesCount].connStatus = READY_TO_CONNECT;
+				foundDevicesCount++;
 			}
+			else {
+				printf("Device "); for(int i=5; i>0; i--){ printf("%02X-", tempDeviceInfo[which_dev].deviceAddress[i]); }
+				printf("%02X could not be connected - maximal number of connections reached!\r\n\r\n",
+						tempDeviceInfo[which_dev].deviceAddress[0]);
+			}
+		}
+		else if(memcmp(rcv_pin, correct_pin, sizeof(correct_pin)) != 0 && which_dev != -1){
+			printf("Wrong authentication data from device ");
+			for(int i=5; i>0; i--){ printf("%02X-", tempDeviceInfo[which_dev].deviceAddress[i]); }
+			printf("%02X  - connection will not be established\r\n\r\n", tempDeviceInfo[which_dev].deviceAddress[0]);
 		}
 	}
 	else if(adv_info->evt_type == SCAN_RSP && adv_info->data_length <= BD_ADDR_SIZE){
-		printf("Wrong authentication data - connection will not be established\r\n\r\n");
-		if(tempDeviceInfoCount > 0) { tempDeviceInfoCount--; }
+		printf("Received insufficient authentication data - connection will not be established\r\n\r\n");
 	}
 }
 

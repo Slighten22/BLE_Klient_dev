@@ -126,11 +126,9 @@ int main(void)
   MX_BlueNRG_MS_Init();
   /* USER CODE BEGIN 2 */
 
-
   //TODO: ilosc znakow po ktorych jest generowane przerwanie
   HAL_UART_Receive_IT(&huart3, uartRcv, RCV_CONFIG_MSG_LEN);
   promptForInitConfig = true;
-
 
   /* USER CODE END 2 */
 
