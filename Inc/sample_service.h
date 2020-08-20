@@ -91,7 +91,8 @@ typedef enum {
  	READY_TO_CONNECT,
  	CONNECTED,
 	PAIRED,
-	READY_TO_EXCHANGE_DATA
+	EXCHANGING_DATA,
+	DISCONNECTED_AFTER_CONNECTION_CREATED
 } ConnectionStatus;
 typedef struct FoundDeviceInfo {
  	uint8_t deviceAddressType;
@@ -99,9 +100,8 @@ typedef struct FoundDeviceInfo {
  	uint8_t deviceName[MAX_NAME_LEN];
  	ConnectionStatus connStatus;
  	uint16_t connHandle;
- 	//
  	uint8_t connSensorsCount;
- 	ConnectedSensor connSensors[/*MAX_CONN_SENSORS*/MAX_CONNECTIONS]; //moze bardziej vector?
+ 	ConnectedSensor connSensors[MAX_CONNECTIONS];
 } FoundDeviceInfo;
 
 //
@@ -156,7 +156,7 @@ void enableNotification(void);
 void Attribute_Modified_CB(uint16_t handle, uint8_t data_length,
                            uint8_t *att_data);
 void GAP_ConnectionComplete_CB(uint8_t addr[6], uint16_t handle);
-void GAP_DisconnectionComplete_CB(void);
+void GAP_DisconnectionComplete_CB(uint16_t conn_handle);
 void GATT_Notification_CB(uint16_t attr_handle, uint8_t attr_len,
                           uint8_t *attr_value, uint16_t conn_handle);
 void GAP_AdvertisingReport_CB(le_advertising_info *adv_info);

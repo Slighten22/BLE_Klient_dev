@@ -67,6 +67,7 @@ FoundDeviceInfo foundDevices[MAX_CONNECTIONS];
 char uartData[BUF_LEN];
 bool newConfig;
 bool promptForInitConfig;
+bool deviceDisconnected;
 
 /* USER CODE END PV */
 
@@ -368,7 +369,7 @@ void AskForDataTaskThread(void const * argument)
 		  MX_BlueNRG_MS_Process();
 		  xSemaphoreTake(newDataMutexHandle, DELAY_TIME);
 		  //Uruchom task prezentacji tylko wtedy, gdy przyjda nowe dane i na poczatku, zeby zachecic do dodania nowej konfiguracji
-		  if(newData || promptForInitConfig){
+		  if(newData || promptForInitConfig || deviceDisconnected){
 		  	  //Wyslij sygnal do taska od prezentacji ze powinien teraz sie uruchomic
 			  xTaskNotify(presentationTaskHandle, 0x02, eSetBits);
 		  }
@@ -506,7 +507,7 @@ void updateReadoutValues(void){
 
 void printConnectedDevicesTree(void){
 	//wypisz cale drzewo polaczen klienta
-	uint8_t len = 0; uint8_t pos = 0; char buf[60]; promptForInitConfig = false;
+	uint8_t len = 0; uint8_t pos = 0; char buf[90]; promptForInitConfig = false; deviceDisconnected = false;
 	memset(uartData, 0x0, sizeof(uartData)); memset(buf, 0x0, sizeof(buf));
 	printf("=====\r\nUrzadzenie centralne (adres "); len = sprintf(buf, "=====<br>Urzadzenie centralne (adres ");
 	memcpy(uartData+pos, buf, len); pos += len;
@@ -528,27 +529,36 @@ void printConnectedDevicesTree(void){
 		}
 		printf("%02X)\r\n", foundDevices[k].deviceAddress[0]); len = sprintf(buf, "%02X)<br>", foundDevices[k].deviceAddress[0]);
 		memcpy(uartData+pos, buf, len); pos += len;
-		if(foundDevices[k].connSensorsCount == 0) {
-			printf("To urządzenie nie otrzymało jeszcze żadnych konfiguracji czujników\r\n\r\n");
-			len = sprintf(buf, "To urządzenie nie ma jeszcze dodanych żadnych czujników<br><br>");
-			memcpy(uartData+pos, buf, len); pos += len;
-		}
-		HAL_UART_Transmit(&huart3, (uint8_t *)uartData, pos, TRANSMIT_TIME);
-		memset(uartData, 0x0, sizeof(uartData)); memset(buf, 0x0, sizeof(buf)); len = 0; pos = 0;
-		for(int m=0; m<foundDevices[k].connSensorsCount; m++){
-			printf("Czujnik %s\r\n", foundDevices[k].connSensors[m].sensorName);
-			len =  sprintf(buf, "Czujnik %s<br>", foundDevices[k].connSensors[m].sensorName); memcpy(uartData+pos, buf, len);pos += len;
-			uint16_t humid = (uint16_t)foundDevices[k].connSensors[m].lastHumidValue;
-			uint16_t temp  = (uint16_t)foundDevices[k].connSensors[m].lastTempValue;
-			uint16_t humidDecimal = ((int)(foundDevices[k].connSensors[m].lastHumidValue*10))%10;
-			uint16_t tempDecimal  = ((int)(foundDevices[k].connSensors[m].lastTempValue*10))%10;
-			printf("Temperatura\t %hu.%huC\r\n", temp, tempDecimal);
-			len = sprintf(buf, "Temperatura\t %hu.%huC<br>", temp, tempDecimal); memcpy(uartData+pos, buf, len); pos += len;
-			printf("Wilgotnosc\t %hu.%hu%%\r\n\r\n", humid, humidDecimal);
-			len = sprintf(buf, "Wilgotnosc\t %hu.%hu%%<br><br>", humid, humidDecimal); memcpy(uartData+pos, buf, len); pos += len;
+		if(foundDevices[k].connStatus == EXCHANGING_DATA){
+			if(foundDevices[k].connSensorsCount == 0) {
+				printf("To urządzenie nie otrzymało jeszcze żadnych konfiguracji czujników\r\n\r\n");
+				len = sprintf(buf, "To urządzenie nie ma jeszcze dodanych żadnych czujników<br><br>");
+				memcpy(uartData+pos, buf, len); pos += len;
+			}
 			HAL_UART_Transmit(&huart3, (uint8_t *)uartData, pos, TRANSMIT_TIME);
 			memset(uartData, 0x0, sizeof(uartData)); memset(buf, 0x0, sizeof(buf)); len = 0; pos = 0;
-		}
+			for(int m=0; m<foundDevices[k].connSensorsCount; m++){
+				printf("Czujnik %s\r\n", foundDevices[k].connSensors[m].sensorName);
+				len =  sprintf(buf, "Czujnik %s<br>", foundDevices[k].connSensors[m].sensorName); memcpy(uartData+pos, buf, len);pos += len;
+				uint16_t humid = (uint16_t)foundDevices[k].connSensors[m].lastHumidValue;
+				uint16_t temp  = (uint16_t)foundDevices[k].connSensors[m].lastTempValue;
+				uint16_t humidDecimal = ((int)(foundDevices[k].connSensors[m].lastHumidValue*10))%10;
+				uint16_t tempDecimal  = ((int)(foundDevices[k].connSensors[m].lastTempValue*10))%10;
+				printf("Temperatura\t %hu.%huC\r\n", temp, tempDecimal);
+				len = sprintf(buf, "Temperatura\t %hu.%huC<br>", temp, tempDecimal); memcpy(uartData+pos, buf, len); pos += len;
+				printf("Wilgotnosc\t %hu.%hu%%\r\n\r\n", humid, humidDecimal);
+				len = sprintf(buf, "Wilgotnosc\t %hu.%hu%%<br><br>", humid, humidDecimal); memcpy(uartData+pos, buf, len); pos += len;
+				HAL_UART_Transmit(&huart3, (uint8_t *)uartData, pos, TRANSMIT_TIME);
+				memset(uartData, 0x0, sizeof(uartData)); memset(buf, 0x0, sizeof(buf)); len = 0; pos = 0;
+			}
+		}//status == EXCHANGING_DATA
+		if(foundDevices[k].connStatus == DISCONNECTED_AFTER_CONNECTION_CREATED){
+			printf("To urządzenie było połączone, a potem rozłączyło się - sprawdź jego stan\r\n\r\n");
+			len = sprintf(buf, "To urządzenie było połączone, a potem rozłączyło się - sprawdź jego stan<br><br>");
+			memcpy(uartData+pos, buf, len); pos += len;
+			HAL_UART_Transmit(&huart3, (uint8_t *)uartData, pos, TRANSMIT_TIME);
+			memset(uartData, 0x0, sizeof(uartData)); memset(buf, 0x0, sizeof(buf)); len = 0; pos = 0;
+		}//status == DISCONNECTED_AFTER_CONNECTION_CREATED
 	}
 	//Wypisanie odczytu "po staremu"
 //					uint16_t humid = (dataBLE[newData][i+1] << 8) | dataBLE[newData][i+2];
@@ -611,7 +621,11 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 		}
 		if(devInd == foundDevicesCount){ //Nie znaleziono urzadzenia
 			printf("Device with given name \"%s\" does not exist - configuration will not be sent\r\n\r\n", deviceName);
-		} else {
+		}
+		else if(foundDevices[devInd].connStatus != EXCHANGING_DATA){ //Urzadzenie rozlaczone lub nieskonfigurowane
+			printf("Device with given name \"%s\" does not exchange data - configuration will not be sent\r\n\r\n", deviceName);
+		}
+		else {
 			prepareNewConfig(devInd, DHT22, interval, sensorName);
 		}
 

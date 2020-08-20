@@ -75,6 +75,7 @@ volatile bool all_servers_connected = false;
 volatile bool pairing_started = false;
 volatile bool pairing_finished = false;
 volatile bool services_discovered = false;
+extern bool deviceDisconnected;
 /* Klient zna handle do charakterystyk serverow */
 uint16_t txHandles[MAX_CONNECTIONS];
 uint8_t txHandlesDiscoveredCount = 0;
@@ -280,7 +281,7 @@ void enableNotification(void)
 		/* Radio is busy */
 		if ((HAL_GetTick() - tickstart) > (10*HCI_DEFAULT_TIMEOUT_MS)) break;
 	  }
-	  foundDevices[notifications_enabled_count].connStatus = READY_TO_EXCHANGE_DATA;
+	  foundDevices[notifications_enabled_count].connStatus = EXCHANGING_DATA;
 	  notifications_enabled_count++;
   }
   all_notifications_enabled = TRUE; //?
@@ -335,21 +336,25 @@ void GAP_ConnectionComplete_CB(uint8_t addr[6], uint16_t handle)
  * @param  None 
  * @retval None
  */
-void GAP_DisconnectionComplete_CB(void)
+void GAP_DisconnectionComplete_CB(uint16_t conn_handle)
 {
-  all_servers_connected = FALSE;
-  
-  printf("Disconnected\n");
-
-  //TODO: przemyslec zachowanie klienta po rozlaczeniu polaczenia!
-  //connectedDevicesCount--; //trzeba jeszcze odnalezc, ktore urz. odlaczone
-  /* Make the device connectable again. */
-//  set_connectable = TRUE;
-//  start_notifications_enable = FALSE;
-//  start_read_tx_char_handle = FALSE;
-//  start_read_rx_char_handle = FALSE;
-//  all_tx_char_handles_read = FALSE;
-//  all_rx_char_handles_read = FALSE;
+	all_servers_connected = false;
+	deviceDisconnected = true;
+	tBDAddr device_addr; uint8_t i=0;
+	memset(device_addr, 0, BD_ADDR_SIZE);
+	for(; i<connectedDevicesCount; i++){
+		if(foundDevices[i].connHandle == conn_handle){
+		  memcpy(device_addr, foundDevices[i].deviceAddress, BD_ADDR_SIZE); break;
+		}
+	}
+	if(i!=connectedDevicesCount){ //udalo sie odnalezc rozlaczone urzadzenie
+		uint8_t tmp = i;
+//		setvbuf(stdout, NULL, _IONBF, 0); //!bez niego HardFault przy probie printfa! - niech zostanie, a jak cos to printf nizej usunac
+//		printf("Disconnected from device: "); for(int i = 5; i > 0; i--){ printf("%02X-", device_addr[i]); }
+//		printf("%02X\r\n\r\n", device_addr[0]);
+		if(foundDevices[tmp].connStatus == EXCHANGING_DATA){ foundDevices[tmp].connStatus = DISCONNECTED_AFTER_CONNECTION_CREATED; }
+		else foundDevices[tmp].connStatus = DISCONNECTED;
+	}
 }
 
 /**
@@ -490,8 +495,9 @@ void user_notify(void * pData) /* Parsowanie otrzymanego eventu */
 	  /* Disconnection */
 	  case EVT_DISCONN_COMPLETE:
 		{
-		  //TODO: po rozlaczeniu: odpowiedni komunikat, zmiana statusu odp. polaczenia na DISCCONNECTED i ew. ponowne wyszukiwanie
-		  GAP_DisconnectionComplete_CB();
+		  evt_disconn_complete *evt = (void *)event_pckt->data;
+		  uint16_t conn_handle = evt->handle;
+		  GAP_DisconnectionComplete_CB(conn_handle);
 		}
 		break;
 
