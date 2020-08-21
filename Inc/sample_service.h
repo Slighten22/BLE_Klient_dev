@@ -70,6 +70,8 @@ extern volatile bool all_tx_char_handles_read;
 extern volatile bool all_rx_char_handles_read;
 extern volatile bool all_servers_connected;
 extern volatile bool services_discovered;
+extern volatile bool pairing_started;
+extern volatile bool pairing_finished;
 extern uint8_t bnrg_expansion_board;
 extern uint8_t whichLoopIteration;
 extern uint8_t whichServerConnecting;
@@ -107,6 +109,7 @@ typedef struct FoundDeviceInfo {
 //
 extern FoundDeviceInfo foundDevices[];
 extern uint8_t foundDevicesCount;
+extern uint8_t prevFoundDevicesCount;
 
 /** @addtogroup Applications
  *  @{

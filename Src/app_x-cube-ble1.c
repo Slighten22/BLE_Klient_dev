@@ -44,9 +44,11 @@
 #include <string.h>
 #include <stdbool.h>
 extern bool newConfig;
+extern bool promptForInitConfig;
 extern uint8_t sentConfigurationMsg[MSG_LEN];
 extern uint8_t whichLoopIteration;
 extern uint8_t foundDevicesCount;
+extern uint8_t prevFoundDevicesCount;
 extern volatile bool start_read_tx_char_handle;
 extern volatile bool start_read_rx_char_handle;
 extern uint8_t whichServerReceivesConfiguration;
@@ -266,8 +268,13 @@ static void User_Process(void)
 {
 	/* Wyszukiwanie serverow przez klienta */
 	if(!discovery_started){
+		prevFoundDevicesCount = foundDevicesCount;
 		/* scanInterval = 6,25 ms; scanWindow = 6,25 ms; ownAddressType = PUBLIC_ADDR; filterDuplicates = yes */
-		tBleStatus ret = aci_gap_start_general_discovery_proc(0x10, 0x10, PUBLIC_ADDR, 0x01);
+
+
+		tBleStatus ret = aci_gap_start_general_discovery_proc(0x10, /*0x10*/0x30, PUBLIC_ADDR, 0x01); //TODO: check scan window
+
+
 		//The two devices are discovered through the EVT_LE_ADVERTISING_REPORT events (sample_service.c).
 		if (ret != BLE_STATUS_SUCCESS) {
 			printf("Error starting device discovery process!\r\n\r\n");
@@ -279,16 +286,23 @@ static void User_Process(void)
 	}
 
 	if(set_connectable && discovery_finished){
-		/* Establish connection with first remote device */
-		if(foundDevicesCount > 0){
+		/* Establish connection with remote devices */
+		/* Przed rozpoczeciem skanowania zapisac w prevFoundDevicesCount stara ilosc znalezionych urzadzen i tutaj spr. czy sa nowe */
+		if(foundDevicesCount - prevFoundDevicesCount > 0){
 			Make_Connection(); /* Stworzenie (nie nawiazanie) polaczenia (master) lub ustawienie wykrywalnosci (slave) */
 			set_connectable = false;
 		}
 		else{
-			printf("No connectable devices found!\r\n\r\n");
-			/* Powtorz skanowanie w poszukiwaniu urzadzen */
-			discovery_started = false;
-			discovery_finished = false;
+			printf("No new connectable devices found!\r\n\r\n");
+			/* Powtorz skanowanie w poszukiwaniu urzadzen - tylko przy skanowaniu pierwszego urz. */
+			if(foundDevicesCount == 0){
+				discovery_started = false;
+				discovery_finished = false;
+			}
+			else {
+				set_connectable = false;
+				client_ready = true; //TODO: ustawic wartosci zmiennych aby dzialac dalej
+			}
 		}
 	}
 
@@ -311,7 +325,6 @@ static void User_Process(void)
     /* Enable notifications to start data exchange */
     if (all_servers_connected && all_tx_char_handles_read && all_rx_char_handles_read && !start_notifications_enable)
     {
-      BSP_LED_Off(LED2); /* end of the connection and chars discovery phase */
       enableNotification(); /* Wlacz wymiane danych */
     }
 
@@ -329,13 +342,13 @@ static void User_Process(void)
 		  newConfig = false;
 		  sendData(whichServerReceivesConfiguration, sentConfigurationMsg, sizeof(sentConfigurationMsg));
 		  //TODO: wiadomosc z konfiguracja moze byc gubiona. rozwiazanie - ACK?
-//		  whichServerReceivesConfiguration = (whichServerReceivesConfiguration+1)%2; //TODO prymitywnie, zamockowane
 		}
     }
 
     if (all_servers_connected && all_tx_char_handles_read && all_rx_char_handles_read && all_notifications_enabled && !client_ready)
     {
     	client_ready = true;
+    	promptForInitConfig = true; /* Wyswietl jeszcze raz drzewo polaczen centralnego urzadzenia */
     }
 }
 

@@ -622,9 +622,26 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 		}
 		else if(whichCmd == '\2'){ //skanowanie urzadzen
 			//TODO
-			printf("Scanning for new and disconnected devices!\r\n\r\n");
-			//POMYSL 1: obsluzyc procedure laczenia normalnie, w User_Process() = najpierw odp. ustawic wszystkie zmienne
-			all_servers_connected && all_tx_char_handles_read && all_rx_char_handles_read && all_notifications_enabled && !client_ready;
+			printf("Scanning for new devices!\r\n\r\n");
+			//POMYSL 1: obsluzyc procedure laczenia normalnie (kazde znal. urz. jako nowe), w User_Process()
+			//= najpierw odp. ustawic wszystkie zmienne globalne i odpalic User_Process()
+			//TODO: ALE te zmienne to sa ok jak cos znajde - a jak nie znajde zadnego nowego urzadzenia to trzeba je recznie ustawic!!@!
+
+			//2) z powrotem ustawic zmienne gdy sie nic nie znajduje
+			discovery_started = false;
+			set_connectable = true;
+			discovery_finished = false;
+			all_servers_connected = false;
+			pairing_started = false;
+			pairing_finished = false;
+			start_read_tx_char_handle = false;
+			all_tx_char_handles_read = false;
+			start_read_rx_char_handle = false;
+			all_rx_char_handles_read = false;
+			start_notifications_enable = false;
+			all_notifications_enabled = false;
+			client_ready = false;
+			//User_Process(); odpala sie samo przy nastepnym obrocie StartDefaultTask
 		}
 
 		//Wysylanie konfiguracji do odp. urzadzenia - przy dodawaniu i usuwaniu czujnikow

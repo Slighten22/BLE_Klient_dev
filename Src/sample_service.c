@@ -88,6 +88,7 @@ uint16_t sampleServHandle, TXCharHandle, RXCharHandle;
 //typedef-y do struktur -> w .h
 //FoundDeviceInfo foundDevices[MAX_CONNECTIONS]; //main.cpp
 uint8_t foundDevicesCount = 0;
+uint8_t prevFoundDevicesCount = 0;
 uint8_t tempDeviceInfoCount = 0;
 //mozemy znalezc i zapamietac wiecej urzadzen (czesc z nich nie przejdzie weryfikacji), polaczymy sie max z MAX_CONNECTIONS urzadzeniami
 FoundDeviceInfo tempDeviceInfo[2*MAX_CONNECTIONS];
