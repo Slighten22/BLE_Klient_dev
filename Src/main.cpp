@@ -83,7 +83,7 @@ void PresentationTaskThread(void const * argument);
 void CommunicationTaskThread(void const * argument);
 void presentDataFromSensor(uint8_t which);
 void delayMicroseconds(uint32_t us);
-void prepareNewConfig(uint8_t deviceInd, uint8_t sensorType, uint16_t interval, uint8_t *name);
+void prepareNewConfig(MessageType msgType, uint8_t deviceInd, uint8_t sensorType, uint16_t interval, uint8_t *name);
 bool checkIfTempSensorReadoutCorrect(uint32_t dataBits, uint8_t checksumBits);
 void printConnectedDevicesTree(void);
 void updateReadoutValues(void);
@@ -437,27 +437,28 @@ void delayMicroseconds(uint32_t us){
 }
 
 //Parametry: do ktorego urzadzenia (indeks w foundDevices[]) wysylamy konf., typ sensora (DHT22), interwal odczytu, nazwa sensora
-void prepareNewConfig(uint8_t deviceInd, uint8_t sensorType, uint16_t interval, uint8_t *name){
-	/* Format wiadomosci: <typ_sensora:1B> <interwal:2B> <nazwa:max.14B> */
-	int i=0;
+void prepareNewConfig(MessageType msg_type, uint8_t deviceInd, uint8_t sensorType, uint16_t interval, uint8_t *name){
+	/* Format wiadomosci: <typ_sensora:1B> <interwal:2B> <nazwa:max.12B> */
 	memset(sentConfigurationMsg, 0x0, sizeof(sentConfigurationMsg));
-	sentConfigurationMsg[0] = sensorType;
+	newConfig = true; int i=0;
+	//TODO: jesli server dostanie 0xFF jako typ sensora, to ma wiedziec ze ma usunac ten czujnik
+	sentConfigurationMsg[0] = (msg_type == ADD_SENSOR ? sensorType : 0xFF);
 	sentConfigurationMsg[1] = interval/16; //16 nie 256!
 	sentConfigurationMsg[2] = interval%16;
-	for(i=3; name[i-3] != '\0' && i<MSG_LEN; i++){
-		sentConfigurationMsg[i] = name[i-3];
-	}
-	if(i < MSG_LEN){
-		sentConfigurationMsg[i] = '\0';
-	}
-	newConfig = true;
-	//wpisywanie do foundDevices informacji o nowo wyslanym czujniku
-	//TODO wpisywanie dopiero gdy mamy pewnosc ze konf. dotarla do serv.?
+	for(i=3; name[i-3] != '\0' && i<MSG_LEN; i++){ sentConfigurationMsg[i] = name[i-3]; }
+	if(i < MSG_LEN){ sentConfigurationMsg[i] = '\0'; }
     uint8_t connSensorsCnt = foundDevices[deviceInd].connSensorsCount;
-	memcpy(foundDevices[deviceInd].connSensors[connSensorsCnt].sensorName, name, i-3);
-	foundDevices[deviceInd].connSensors[connSensorsCnt].lastTempValue = 0.0F;
-	foundDevices[deviceInd].connSensors[connSensorsCnt].lastHumidValue = 0.0F;
-	foundDevices[deviceInd].connSensorsCount++;
+	if(msg_type == ADD_SENSOR){ //wpisywanie do foundDevices informacji o nowo wyslanym czujniku
+		memcpy(foundDevices[deviceInd].connSensors[connSensorsCnt].sensorName, name, i-3);
+		foundDevices[deviceInd].connSensors[connSensorsCnt].lastTempValue = 0.0F;
+		foundDevices[deviceInd].connSensors[connSensorsCnt].lastHumidValue = 0.0F;
+		foundDevices[deviceInd].connSensorsCount++;
+	}
+	else if(msg_type == DELETE_SENSOR){
+		if(memcmp(name, foundDevices[deviceInd].connSensors[connSensorsCnt-1].sensorName, i-3) == 0){ //o ile sensor istnieje
+			foundDevices[deviceInd].connSensorsCount--; //TODO: usuwanie tylko ostatniego sensora; dodac znajdowanie sensora po nazwie
+		}
+	}
 	whichServerReceivesConfiguration = deviceInd;
 }
 
@@ -553,8 +554,8 @@ void printConnectedDevicesTree(void){
 			}
 		}//status == EXCHANGING_DATA
 		if(foundDevices[k].connStatus == DISCONNECTED_AFTER_CONNECTION_CREATED){
-			printf("To urządzenie było połączone, a potem rozłączyło się - sprawdź jego stan\r\n\r\n");
-			len = sprintf(buf, "To urządzenie było połączone, a potem rozłączyło się - sprawdź jego stan<br><br>");
+			printf("Utracono połączenie - sprawdź stan urządzenia\r\n\r\n");
+			len = sprintf(buf, "Utracono połączenie - sprawdź stan urządzenia<br><br>");
 			memcpy(uartData+pos, buf, len); pos += len;
 			HAL_UART_Transmit(&huart3, (uint8_t *)uartData, pos, TRANSMIT_TIME);
 			memset(uartData, 0x0, sizeof(uartData)); memset(buf, 0x0, sizeof(buf)); len = 0; pos = 0;
@@ -592,27 +593,40 @@ void printConnectedDevicesTree(void){
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 	if(huart->Instance == USART3){ //Odebrano wiadomosc z konfiguracja - wyciagnij info z wiadomosci i wyslij info do odp. servera
-		//Format wiadomosci: nazwa_urzadzenia \0 nazwa_czujnika \0 interwal \0 (TODO: i dopelnione \0 dla stalej dlugosci wiadomosci)
+		//Format wiadomosci: nazwa_urzadzenia \0 nazwa_czujnika \0 interwal \0
 		//TODO jakas weryfikacja tych danych konfiguracji - np. czy nazwa ma mniej niz 12 (dozwolonych) znakow, czy interwal <= 99 itd.
 		uint8_t ind = 0; uint8_t deviceName[MAX_NAME_LEN]; uint8_t sensorName[MAX_NAME_LEN]; uint8_t intervalChar[MAX_NAME_LEN];
+		uint16_t interval = 0;
 		memset(deviceName, 0, MAX_NAME_LEN);
 		memset(sensorName, 0, MAX_NAME_LEN);
 		memset(intervalChar, 0, MAX_NAME_LEN);
-		for(; ind < MAX_NAME_LEN && uartRcv[ind] != '\0'; ind++) { } //znajdz indeks pierwszego \0 (dla nazwy urzadzenia)
-		memcpy(deviceName, uartRcv, ind);
-		uint8_t start = ++ind;
-		for(; ind < start+MAX_NAME_LEN && uartRcv[ind] != '\0'; ind++) { } //znajdz indeks drugiego \0 (dla nazwy czujnika)
-		memcpy(sensorName, uartRcv+start, ind-start);
-		start = ++ind;
-		for(; ind < start+MAX_NAME_LEN && uartRcv[ind] != '\0'; ind++) { } //znajdz indeks trzeciego \0 (dla interwalu)
-		memcpy(intervalChar, uartRcv+start, ind-start);
-		uint8_t interval = 0;
-		if(ind-start == 1) { interval = intervalChar[0]-'0'; }
-		else { //przeksztalcenie stringa typu 123 na liczbe
-			uint8_t end = --ind;
-			for(; ind >= start; ind--) { interval += (intervalChar[ind-start]-'0')*(pow(10, end-ind)); }
+
+		//TODO: mamy 2 typy wiadomosci - dodac sensor albo go usunac; wiadomosc o usunieciu zaczyna sie "\0"
+		if(uartRcv[0] != '\0'){ //dodawanie sensora
+			for(; ind < MAX_NAME_LEN && uartRcv[ind] != '\0'; ind++) { } //znajdz indeks pierwszego \0 (dla nazwy urzadzenia)
+			memcpy(deviceName, uartRcv, ind);
+			uint8_t start = ++ind;
+			for(; ind < start+MAX_NAME_LEN && uartRcv[ind] != '\0'; ind++) { } //znajdz indeks drugiego \0 (dla nazwy czujnika)
+			memcpy(sensorName, uartRcv+start, ind-start);
+			start = ++ind;
+			for(; ind < start+MAX_NAME_LEN && uartRcv[ind] != '\0'; ind++) { } //znajdz indeks trzeciego \0 (dla interwalu)
+			memcpy(intervalChar, uartRcv+start, ind-start);
+			if(ind-start == 1) { interval = intervalChar[0]-'0'; }
+			else { //przeksztalcenie stringa typu 123 na liczbe
+				uint8_t end = --ind;
+				for(; ind >= start; ind--) { interval += (intervalChar[ind-start]-'0')*(pow(10, end-ind)); }
+			}
+			printf("Received configuration: device name \"%s\" sensor name \"%s\" interval %hhu\r\n\r\n", deviceName, sensorName, interval);
+		} //dodawanie sensora
+		else { //TODO: usuwanie sensora = musi zniknac z podlaczonych sensorow w foundDevices[] + jakis komunikat do servera, ze sensor odlaczamy
+			ind = 1;
+			for(; ind <= MAX_NAME_LEN && uartRcv[ind] != '\0'; ind++) { } //znajdz indeks pierwszego \0 (dla nazwy urzadzenia)
+			memcpy(deviceName, uartRcv+1, ind-1);
+			uint8_t start = ++ind;
+			for(; ind <= start+MAX_NAME_LEN && uartRcv[ind] != '\0'; ind++) { } //znajdz indeks drugiego \0 (dla nazwy czujnika)
+			memcpy(sensorName, uartRcv+start, ind-start);
+			printf("Received message to delete sensor %s from device %s\r\n\r\n", sensorName, deviceName);
 		}
-		printf("Received configuration: device name \"%s\" sensor name \"%s\" interval %hhu\r\n\r\n", deviceName, sensorName, interval);
 
 		//Wysylanie konfiguracji do odp. urzadzenia
 		uint8_t devInd = 0;
@@ -620,13 +634,14 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 			if(memcmp(deviceName, foundDevices[devInd].deviceName, MAX_NAME_LEN) == 0) { break; }
 		}
 		if(devInd == foundDevicesCount){ //Nie znaleziono urzadzenia
-			printf("Device with given name \"%s\" does not exist - configuration will not be sent\r\n\r\n", deviceName);
+			printf("Device with given name \"%s\" is not connected - configuration will not be sent\r\n\r\n", deviceName);
 		}
 		else if(foundDevices[devInd].connStatus != EXCHANGING_DATA){ //Urzadzenie rozlaczone lub nieskonfigurowane
-			printf("Device with given name \"%s\" does not exchange data - configuration will not be sent\r\n\r\n", deviceName);
+			printf("Device with given name \"%s\" not ready to exchange data - configuration will not be sent\r\n\r\n", deviceName);
 		}
 		else {
-			prepareNewConfig(devInd, DHT22, interval, sensorName);
+			if(uartRcv[0] != '\0'){ prepareNewConfig(ADD_SENSOR, devInd, DHT22, interval, sensorName); }
+			else { prepareNewConfig(DELETE_SENSOR, devInd, DHT22, interval, sensorName); }
 		}
 
 		//Ponowne wlaczenie nasluchiwania

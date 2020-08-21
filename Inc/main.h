@@ -48,6 +48,11 @@ typedef enum {
 	DHT22
 	//... inne typy sensorow
 } SensorType;
+
+typedef enum {
+	ADD_SENSOR,
+	DELETE_SENSOR
+} MessageType; //dla wysylania wiadomosci z konfiguracja do servera
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/
