@@ -266,7 +266,8 @@ static void User_Process(void)
 {
 	/* Wyszukiwanie serverow przez klienta */
 	if(!discovery_started){
-		tBleStatus ret = aci_gap_start_general_discovery_proc(0x10, 0x10, PUBLIC_ADDR, 0x01); //filter duplicates
+		/* scanInterval = 6,25 ms; scanWindow = 6,25 ms; ownAddressType = PUBLIC_ADDR; filterDuplicates = yes */
+		tBleStatus ret = aci_gap_start_general_discovery_proc(0x10, 0x10, PUBLIC_ADDR, 0x01);
 		//The two devices are discovered through the EVT_LE_ADVERTISING_REPORT events (sample_service.c).
 		if (ret != BLE_STATUS_SUCCESS) {
 			printf("Error starting device discovery process!\r\n\r\n");
