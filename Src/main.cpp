@@ -87,6 +87,7 @@ void prepareNewConfig(MessageType msgType, uint8_t deviceInd, uint8_t sensorType
 bool checkIfTempSensorReadoutCorrect(uint32_t dataBits, uint8_t checksumBits);
 void printConnectedDevicesTree(void);
 void updateReadoutValues(void);
+void prepareForScanning(void);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -625,23 +626,8 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 			printf("Scanning for new devices!\r\n\r\n");
 			//POMYSL 1: obsluzyc procedure laczenia normalnie (kazde znal. urz. jako nowe), w User_Process()
 			//= najpierw odp. ustawic wszystkie zmienne globalne i odpalic User_Process()
-			//TODO: ALE te zmienne to sa ok jak cos znajde - a jak nie znajde zadnego nowego urzadzenia to trzeba je recznie ustawic!!@!
-
-			//2) z powrotem ustawic zmienne gdy sie nic nie znajduje
-			discovery_started = false;
-			set_connectable = true;
-			discovery_finished = false;
-			all_servers_connected = false;
-			pairing_started = false;
-			pairing_finished = false;
-			start_read_tx_char_handle = false;
-			all_tx_char_handles_read = false;
-			start_read_rx_char_handle = false;
-			all_rx_char_handles_read = false;
-			start_notifications_enable = false;
-			all_notifications_enabled = false;
-			client_ready = false;
-			//User_Process(); odpala sie samo przy nastepnym obrocie StartDefaultTask
+			prepareForScanning();
+			//User_Process() odpala sie samo przy nastepnym obrocie StartDefaultTask
 		}
 
 		//Wysylanie konfiguracji do odp. urzadzenia - przy dodawaniu i usuwaniu czujnikow
@@ -666,6 +652,23 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 		memset(uartRcv, 0, sizeof(uartRcv));
 		HAL_UART_Receive_IT(&huart3, uartRcv, RCV_CONFIG_MSG_LEN);
 	}
+}
+
+void prepareForScanning(void){
+	//Ustaw odp. wartosci zmiennych (dla User_Process()), aby mozna bylo zrobic kolejne skanownanie na zyczenie uzytkownika
+	discovery_started = false;
+	set_connectable = true;
+	discovery_finished = false;
+	all_servers_connected = false;
+	pairing_started = false;
+	pairing_finished = false;
+	start_read_tx_char_handle = false;
+	all_tx_char_handles_read = false;
+	start_read_rx_char_handle = false;
+	all_rx_char_handles_read = false;
+	start_notifications_enable = false;
+	all_notifications_enabled = false;
+	client_ready = false;
 }
 
 /* USER CODE END 7 */

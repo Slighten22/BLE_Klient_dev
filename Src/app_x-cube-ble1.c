@@ -269,16 +269,10 @@ static void User_Process(void)
 	/* Wyszukiwanie serverow przez klienta */
 	if(!discovery_started){
 		prevFoundDevicesCount = foundDevicesCount;
-		/* scanInterval = 6,25 ms; scanWindow = 6,25 ms; ownAddressType = PUBLIC_ADDR; filterDuplicates = yes */
-
-
-		tBleStatus ret = aci_gap_start_general_discovery_proc(0x10, /*0x10*/0x30, PUBLIC_ADDR, 0x01); //TODO: check scan window
-
-
-		//The two devices are discovered through the EVT_LE_ADVERTISING_REPORT events (sample_service.c).
-		if (ret != BLE_STATUS_SUCCESS) {
-			printf("Error starting device discovery process!\r\n\r\n");
-		}
+		/* scanInterval = 0x10*0,625=10 ms; scanWindow = ? ms (<= scanInterval); ownAddressType = PUBLIC_ADDR; filterDuplicates = yes */
+		tBleStatus ret = aci_gap_start_general_discovery_proc(/*0x10*/0x40, /*0x10*/0x30, PUBLIC_ADDR, 0x01); //TODO: check scan window
+		/* The two devices are discovered through the EVT_LE_ADVERTISING_REPORT events (sample_service.c) */
+		if (ret != BLE_STATUS_SUCCESS) { printf("Error starting device discovery process!\r\n\r\n"); }
 		else{
 			discovery_started = true;
 			printf("Device discovery process started\r\n\r\n");
@@ -293,7 +287,7 @@ static void User_Process(void)
 			set_connectable = false;
 		}
 		else{
-			printf("No new connectable devices found!\r\n\r\n");
+			printf("No connectable devices found!\r\n\r\n");
 			/* Powtorz skanowanie w poszukiwaniu urzadzen - tylko przy skanowaniu pierwszego urz. */
 			if(foundDevicesCount == 0){
 				discovery_started = false;
