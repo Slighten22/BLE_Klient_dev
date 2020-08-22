@@ -13,6 +13,6 @@ main.cpp:473:6:void updateReadoutValues()	64	static
 main.cpp:510:6:void printConnectedDevicesTree()	144	static
 cmath:438:5:constexpr typename __gnu_cxx::__promote_2<_Tp, _Up>::__type std::pow(_Tp, _Up) [with _Tp = int; _Up = int]	24	static
 main.cpp:595:6:void HAL_UART_RxCpltCallback(UART_HandleTypeDef*)	80	static
-main.cpp:657:6:void prepareForScanning()	4	static
-main.cpp:684:6:void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef*)	16	static
-main.cpp:701:6:void Error_Handler()	4	static
+main.cpp:655:6:void prepareForScanning()	4	static
+main.cpp:682:6:void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef*)	16	static
+main.cpp:699:6:void Error_Handler()	4	static

@@ -44,7 +44,8 @@
 #endif 
 
  /* Private defines */
- #define MAX_CONNECTIONS 8 //Mode 3: master/slave, max. 8 connections
+#define MAX_CONNECTIONS 8 //Mode 3: master/slave, max. 8 connections
+#define MAX_SENSORS 5
 
 /* Includes ------------------------------------------------------------------*/
 #include <stdio.h>
@@ -80,6 +81,7 @@ extern uint8_t newData;
 extern BLE_RoleTypeDef BLE_Role;
 extern osMutexId newDataMutexHandle;
 extern bool newDataPresent;
+extern bool promptForInitConfig;
 
 /* Dla "drzewa" urzadzen pamietanego przez klienta */
 typedef struct ConnectedSensor {
@@ -103,7 +105,7 @@ typedef struct FoundDeviceInfo {
  	ConnectionStatus connStatus;
  	uint16_t connHandle;
  	uint8_t connSensorsCount;
- 	ConnectedSensor connSensors[MAX_CONNECTIONS];
+ 	ConnectedSensor connSensors[MAX_SENSORS];
 } FoundDeviceInfo;
 
 //

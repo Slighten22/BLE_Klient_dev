@@ -61,14 +61,15 @@
 /* Private variables ---------------------------------------------------------*/
 volatile uint8_t connectedDevicesCount = 0;
 volatile uint8_t pairedDevicesCount = 0;
+volatile int disconnectedDeviceToConnectIndex = -1;
 volatile bool set_connectable = true;
 volatile bool client_ready = false;
 volatile bool discovery_started = false;
 volatile bool discovery_finished = false;
 volatile bool start_notifications_enable = false;
 volatile bool all_notifications_enabled = false;
-volatile bool start_read_tx_char_handle = false;//?
-volatile bool start_read_rx_char_handle = false;//?
+volatile bool start_read_tx_char_handle = false;
+volatile bool start_read_rx_char_handle = false;
 volatile bool all_tx_char_handles_read = false;
 volatile bool all_rx_char_handles_read = false;
 volatile bool all_servers_connected = false;
@@ -163,12 +164,13 @@ fail:
  */
 void Make_Connection(void)
 {  
-	printf("Client Create Connection with device %d\r\n\r\n", connectedDevicesCount+1);
+	uint8_t deviceToConnectIndex = (disconnectedDeviceToConnectIndex >= 0 ? disconnectedDeviceToConnectIndex : connectedDevicesCount);
+	printf("Client Create Connection with device %d\r\n\r\n", deviceToConnectIndex+1);
 	tBleStatus ret = aci_gap_create_connection(
 		SCAN_P/*0x0010*/, /* 10240 msec = Scan Interval: from when the Controller started its last scan until it begins the subsequent scan = how long to wait between scans (for a number N, Time = N x 0.625 msec) */
 		SCAN_L/*0x0010*/, /* 10240 msec = Scan Window: amount of time for the duration of the LE scan = how long to scan (for a number N, Time = N x 0.625 msec) */
-		foundDevices[connectedDevicesCount].deviceAddressType, /* Peer_Address_Type */
-		foundDevices[connectedDevicesCount].deviceAddress, /* Peer_Address */
+		foundDevices[deviceToConnectIndex].deviceAddressType, /* Peer_Address_Type */
+		foundDevices[deviceToConnectIndex].deviceAddress, /* Peer_Address */
 		PUBLIC_ADDR, /* Own_Address_Type */
 		CONN_P1/*0x06C*/, /* 50 msec = Minimum Connection Period (interval) = time between two data transfer events (for a number N, Time = N x 1.25 msec) */
 		CONN_P2/*0x06C*/, /* 50 msec = Maximum Connection Period (interval) = Connection interval is the time between one radio event on a given connection and the next radio event on the same connection (for a number N, Time = N x 1.25 msec) */
@@ -180,6 +182,7 @@ void Make_Connection(void)
 	if (ret != BLE_STATUS_SUCCESS){
 	  printf("Error while starting connection with device %d\r\n\r\n", connectedDevicesCount);
 	}
+	disconnectedDeviceToConnectIndex = -1;
 }
 
 /**
@@ -314,9 +317,16 @@ void Attribute_Modified_CB(uint16_t handle, uint8_t data_length, uint8_t *att_da
  */
 void GAP_ConnectionComplete_CB(uint8_t addr[6], uint16_t handle)
 {  
+
+
+ //TODO: dolaczanie rozlaczonego urz.
   foundDevices[connectedDevicesCount].connHandle = handle;
   foundDevices[connectedDevicesCount].connStatus = CONNECTED;
   connectedDevicesCount++;
+
+
+
+
   printf("Connected to device: ");
   for(int i = 5; i > 0; i--){
     printf("%02X-", addr[i]);
@@ -393,13 +403,13 @@ void GATT_Notification_CB(uint16_t attr_handle, uint8_t attr_len, uint8_t *attr_
 void GAP_AdvertisingReport_CB(le_advertising_info *adv_info){
 	if(adv_info->evt_type == ADV_IND){
 		//sprawdzic, czy znalezione urzadzenie to nie duplikat (czy nie mamy juz tego adresu w tablicy)
-		bool isDeviceNew = true;
+		bool isDeviceNew = true; int ind = 0;
 		tBDAddr foundDeviceAddress;
 		memset(foundDeviceAddress, 0, BD_ADDR_SIZE);
 		memcpy(foundDeviceAddress, adv_info->bdaddr, BD_ADDR_SIZE);
-		for(int i=0; i<tempDeviceInfoCount; i++){
-			if(memcmp(foundDeviceAddress, tempDeviceInfo[i].deviceAddress, BD_ADDR_SIZE) == 0){
-				isDeviceNew = false;
+		for(ind=0; ind<tempDeviceInfoCount; ind++){
+			if(memcmp(foundDeviceAddress, tempDeviceInfo[ind].deviceAddress, BD_ADDR_SIZE) == 0){
+				isDeviceNew = false; break;
 			}
 		}
 		if(isDeviceNew){
@@ -420,9 +430,54 @@ void GAP_AdvertisingReport_CB(le_advertising_info *adv_info){
 			}
 			else{
 				printf("Device "); for(int i=5; i>0; i--){ printf("%02X-", foundDeviceAddress[i]); }
-				printf("%02X could not be connected - maximal number of connections reached!\r\n\r\n\r\n\r\n", foundDeviceAddress[0]);
+				printf("%02X could not be connected - maximal number of connections reached!\r\n\r\n", foundDeviceAddress[0]);
 			}
 		}
+
+
+//		else if(foundDevices[ind].connStatus == DISCONNECTED_AFTER_CONNECTION_CREATED){//odnawianie polaczenia ze znanym, rozlaczonym urz
+//			printf("Reconnecting with previously connected device!\r\n\r\n");
+//			//TODO: stworz na nowo polaczenie, wsyzstkie dane o urzadzeniu sa juz w foundDevices[]
+//			//tylko stworzyc polaczenie i juz mozna wymieniac dane? bez parowania, odkrywania ch-tyk i wlaczania powiadomien?
+//			//wyzerowac dotychczasowe sensory urzadzenia
+//			foundDevices[ind].connSensorsCount = 0;
+//			for(int i=0; i<MAX_SENSORS; i++){
+//				memset(foundDevices[ind].connSensors[i].sensorName, 0, MAX_NAME_LEN);
+//				foundDevices[ind].connSensors[i].lastHumidValue = 0.0F;
+//				foundDevices[ind].connSensors[i].lastTempValue  = 0.0F;
+//			}
+//
+//			//proba 3: zrob Make_Connection() z odpowiednim urzadzeniem wewnatrz User_Process()
+//			//-> zmienna globalna mowi w Make_Connection() czy nawiazujemy polaczenie z nowym urz., czy z wczesniej rozlaczonym
+//			disconnectedDeviceToConnectIndex = ind;
+//			//zmiana sta
+//
+//			//proba 1: sprobuj stworzyc polaczenie z tym jednym urzadzeniem, i co dalej? -> blad 0x0C: ERR_COMMAND_DISALLOWED
+//			tBleStatus ret = aci_gap_create_connection( //parametry polaczenia? czy proba laczenia w zlym momencie?
+//				SCAN_P/*0x00F0zm.*/, /* 10240 msec = Scan Interval: from when the Controller started its last scan until it begins the subsequent scan = how long to wait between scans (for a number N, Time = N x 0.625 msec) */
+//				SCAN_L/*0x00F0zm.*/, /* 10240 msec = Scan Window: amount of time for the duration of the LE scan = how long to scan (for a number N, Time = N x 0.625 msec) */
+//				foundDevices[ind].deviceAddressType, /* Peer_Address_Type */
+//				foundDevices[ind].deviceAddress, /* Peer_Address */
+//				PUBLIC_ADDR, /* Own_Address_Type */
+//				CONN_P1/*0x06C*/, /* 50 msec = Minimum Connection Period (interval) = time between two data transfer events (for a number N, Time = N x 1.25 msec) */
+//				CONN_P2/*0x06C*/, /* 50 msec = Maximum Connection Period (interval) = Connection interval is the time between one radio event on a given connection and the next radio event on the same connection (for a number N, Time = N x 1.25 msec) */
+//				0x0000, /* Connection latency = If non-zero, the peripheral is allowed to skip up to slave latency radio events and not listen. That saves even more power, at the expense of even slower data. number of consecutive connection events where the slave doesn't need to listen on the master(?) */
+//				SUPERV_TIMEOUT/*0x0C80*/, /* 600 msec = Supervision Timeout (reset upon reception of a valid packet) max time between 2 packets before connection is considered lost (Time = N x 10 msec) */
+//				/*CONN_L1*/0x000C, /* 7.5 msec (previously 1250 msec and not working) = Minimum Connection Length (for a number N, Time = N x 0.625 msec) */
+//				/*CONN_L2*/0x000C  /* 7.5 msec (previously 1250 msec and not working) = Maximal Connection Length (for a number N, Time = N x 0.625 msec) */
+//			);
+//			if(ret == BLE_STATUS_SUCCESS){ printf("Connection with previously connected device created\r\n\r\n"); }
+//			else{ printf("Failed to create connection with previously connected device\r\n\r\n"); }
+
+
+			//proba 2: proba (bardzo) po barbarzynsku
+//			foundDevices[ind].connStatus = EXCHANGING_DATA;
+//			discovery_finished = false; //aby nie przechodzic dalej po User_Process()
+//			client_ready = true;
+//			promptForInitConfig = true;
+//		}
+
+
 	} /* evt_type == ADV_IND */
 	else if(adv_info->evt_type == SCAN_RSP && adv_info->data_length > BD_ADDR_SIZE){
 		uint8_t data_len = adv_info->data_length;

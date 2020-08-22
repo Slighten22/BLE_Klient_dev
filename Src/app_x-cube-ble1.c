@@ -51,6 +51,7 @@ extern uint8_t foundDevicesCount;
 extern uint8_t prevFoundDevicesCount;
 extern volatile bool start_read_tx_char_handle;
 extern volatile bool start_read_rx_char_handle;
+extern volatile int disconnectedDeviceToConnectIndex;
 extern uint8_t whichServerReceivesConfiguration;
 uint8_t whichServerConnecting = 1;
 
@@ -282,7 +283,7 @@ static void User_Process(void)
 	if(set_connectable && discovery_finished){
 		/* Establish connection with remote devices */
 		/* Przed rozpoczeciem skanowania zapisac w prevFoundDevicesCount stara ilosc znalezionych urzadzen i tutaj spr. czy sa nowe */
-		if(foundDevicesCount - prevFoundDevicesCount > 0){
+		if(foundDevicesCount - prevFoundDevicesCount > 0 || disconnectedDeviceToConnectIndex >= 0){
 			Make_Connection(); /* Stworzenie (nie nawiazanie) polaczenia (master) lub ustawienie wykrywalnosci (slave) */
 			set_connectable = false;
 		}

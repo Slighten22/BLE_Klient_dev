@@ -622,11 +622,9 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 			printf("Received message to delete sensor %s from device %s\r\n\r\n", sensorName, deviceName);
 		}
 		else if(whichCmd == '\2'){ //skanowanie urzadzen
-			//TODO
 			printf("Scanning for new devices!\r\n\r\n");
 			//POMYSL 1: obsluzyc procedure laczenia normalnie (kazde znal. urz. jako nowe), w User_Process()
-			//= najpierw odp. ustawic wszystkie zmienne globalne i odpalic User_Process()
-			prepareForScanning();
+			prepareForScanning(); //= najpierw odp. ustawic wszystkie zmienne globalne i odpalic User_Process()
 			//User_Process() odpala sie samo przy nastepnym obrocie StartDefaultTask
 		}
 
