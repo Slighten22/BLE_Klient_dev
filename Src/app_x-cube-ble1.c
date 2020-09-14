@@ -232,8 +232,7 @@ void MX_BlueNRG_MS_Process(void)
   
   /* USER CODE END BlueNRG_MS_Process_PreTreatment */
   
-  /* Stworzenie (nie nawiazanie) polaczenia (master) lub ustawienie wykrywalnosci (slave) i ?wlaczenie powiadomien, ?udostepnienie charakterystyk */
-  /* Po nawiazaniu polaczenia nic juz sie w User_Process nie dzieje! */
+  /* Nawiazanie polaczenia, parowanie, potem obsluga wymiany danych miedzy urzadzeniami */
   User_Process();
   /* Przeparsuj otrzymane pakiety i wywolaj odpowiednie funkcje; tu sa odebrane dane */
   hci_user_evt_proc();
@@ -317,8 +316,7 @@ static void User_Process(void)
       startReadRXCharHandle();
     }
     /* Enable notifications to start data exchange */
-    if (all_servers_connected && all_tx_char_handles_read && all_rx_char_handles_read && !start_notifications_enable)
-    {
+    if (all_servers_connected && all_tx_char_handles_read && all_rx_char_handles_read && !start_notifications_enable){
       enableNotification(); /* Wlacz wymiane danych */
     }
 

@@ -76,7 +76,6 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_USART3_UART_Init(void);
 void StartDefaultTask(void const * argument);
-
 /* USER CODE BEGIN PFP */
 void AskForDataTaskThread(void const * argument);
 void PresentationTaskThread(void const * argument);
@@ -375,18 +374,6 @@ void AskForDataTaskThread(void const * argument)
 			  xTaskNotify(presentationTaskHandle, 0x02, eSetBits);
 		  }
 		  xSemaphoreGive(newDataMutexHandle);
-
-		  //prymitywne wysylanie konfig. - !zwrocic uwage na delay glownego taska i wartosc countera!
-//		  if(counter == 1*(UINT16_MAX/32)){ prepareNewConfig(0/*serverInd*/, DHT22, 4, (uint8_t *)"Biurko"); }
-//		  if(counter == 2*(UINT16_MAX/32)){ prepareNewConfig(1, DHT22, 5, (uint8_t *)"Okno"); }
-//		  if(counter == 3*(UINT16_MAX/32)){ prepareNewConfig(0, DHT22, 5, (uint8_t *)"Okno"); }
-//		  if(counter == 4*(UINT16_MAX/32)){ prepareNewConfig(1, DHT22, 5, (uint8_t *)"Blat"); }
-//		  if(counter == 5*(UINT16_MAX/32)){ prepareNewConfig(0, DHT22, 5, (uint8_t *)"Drzwi");}
-//		  //uwazac zeby tylko raz wysylac pozadana konfiguracje - a nie w petli co przepelnienie wartosci countera!
-//		  if(counter <= UINT16_MAX/2){
-//			  counter++;
-//		  }
-
 		}
 	}
 }
@@ -509,27 +496,27 @@ void updateReadoutValues(void){
 
 void printConnectedDevicesTree(void){
 	//wypisz cale drzewo polaczen klienta
-	uint8_t len = 0; uint8_t pos = 0; char buf[90]; promptForInitConfig = false; deviceDisconnected = false;
+	uint8_t len = 0; uint8_t pos = 0; char buf[120]; promptForInitConfig = false; deviceDisconnected = false;
 	memset(uartData, 0x0, sizeof(uartData)); memset(buf, 0x0, sizeof(buf));
-	printf("=====\r\nUrzadzenie centralne (adres "); len = sprintf(buf, "=====<br>Urzadzenie centralne (adres ");
+	printf("=====\r\nUrzadzenie centralne (adres "); len=sprintf(buf,"<h4>Lista urządzeń połączonych z urządzeniem centralnym (adres ");
 	memcpy(uartData+pos, buf, len); pos += len;
 	for(int p = 5; p > 0; p--){
-		len = printf("%02X-", bdaddr[p]); sprintf(buf, "%02X-", bdaddr[p]); memcpy(uartData+pos, buf, len); pos += len;
+		printf("%02X-", bdaddr[p]); len = sprintf(buf, "%02X-", bdaddr[p]); memcpy(uartData+pos, buf, len); pos += len;
 	}
 	printf("%02X)\r\nPolaczone urzadzenia peryferyjne:\r\n\r\n", bdaddr[0]);
-	len = sprintf(buf, "%02X)<br>Polaczone urzadzenia peryferyjne:<br><br>", bdaddr[0]);
+	len = sprintf(buf, "%02X)</h4>", bdaddr[0]);
 	memcpy(uartData+pos, buf, len); pos += len;
 	HAL_UART_Transmit(&huart3, (uint8_t *)uartData, pos, TRANSMIT_TIME);
 	memset(uartData, 0x0, sizeof(uartData)); memset(buf, 0x0, sizeof(buf)); len = 0; pos = 0;
 	for(int k=0; k<foundDevicesCount; k++){
 		printf("%d. Urzadzenie %s (adres ", k+1, foundDevices[k].deviceName);
-		len = sprintf(buf, "%d. Urzadzenie %s (adres ", k+1, foundDevices[k].deviceName);
+		len = sprintf(buf, "<h5>%d. Urządzenie %s (adres ", k+1, foundDevices[k].deviceName);
 		memcpy(uartData+pos, buf, len); pos += len;
 		for(int p = 5; p > 0; p--){
 			printf("%02X-", foundDevices[k].deviceAddress[p]); len = sprintf(buf, "%02X-", foundDevices[k].deviceAddress[p]);
 			memcpy(uartData+pos, buf, len); pos += len;
 		}
-		printf("%02X)\r\n", foundDevices[k].deviceAddress[0]); len = sprintf(buf, "%02X)<br>", foundDevices[k].deviceAddress[0]);
+		printf("%02X)\r\n", foundDevices[k].deviceAddress[0]); len = sprintf(buf, "%02X)</h5>", foundDevices[k].deviceAddress[0]);
 		memcpy(uartData+pos, buf, len); pos += len;
 		if(foundDevices[k].connStatus == EXCHANGING_DATA){
 			if(foundDevices[k].connSensorsCount == 0) {
@@ -540,16 +527,37 @@ void printConnectedDevicesTree(void){
 			HAL_UART_Transmit(&huart3, (uint8_t *)uartData, pos, TRANSMIT_TIME);
 			memset(uartData, 0x0, sizeof(uartData)); memset(buf, 0x0, sizeof(buf)); len = 0; pos = 0;
 			for(int m=0; m<foundDevices[k].connSensorsCount; m++){
-				printf("Czujnik %s\r\n", foundDevices[k].connSensors[m].sensorName);
-				len =  sprintf(buf, "Czujnik %s<br>", foundDevices[k].connSensors[m].sensorName); memcpy(uartData+pos, buf, len);pos += len;
+				//nazwa czujnika
+				printf("Czujnik %s", foundDevices[k].connSensors[m].sensorName);
+				len =  sprintf(buf, "<h6>Czujnik <strong>%s</strong> ", foundDevices[k].connSensors[m].sensorName); memcpy(uartData+pos, buf, len);pos+=len;
+				//pin do ktorego ma byc dolaczony czujnik
+				int pinNumber = 0;
+				switch(m){
+				case 0:
+					pinNumber = 4;
+					break;
+				case 1:
+					pinNumber = 9;
+					break;
+				case 2:
+					pinNumber = 10;
+					break;
+				default:
+					break;
+				}
+				printf("\tpin PA%d\r\n", pinNumber);
+				len = sprintf(buf, "- pin PA%d</h6>", pinNumber); memcpy(uartData+pos, buf, len); pos += len;
+				//temperatura i wilgotnosc
 				uint16_t humid = (uint16_t)foundDevices[k].connSensors[m].lastHumidValue;
 				uint16_t temp  = (uint16_t)foundDevices[k].connSensors[m].lastTempValue;
 				uint16_t humidDecimal = ((int)(foundDevices[k].connSensors[m].lastHumidValue*10))%10;
 				uint16_t tempDecimal  = ((int)(foundDevices[k].connSensors[m].lastTempValue*10))%10;
-				printf("Temperatura\t %hu.%huC\r\n", temp, tempDecimal);
-				len = sprintf(buf, "Temperatura\t %hu.%huC<br>", temp, tempDecimal); memcpy(uartData+pos, buf, len); pos += len;
-				printf("Wilgotnosc\t %hu.%hu%%\r\n\r\n", humid, humidDecimal);
-				len = sprintf(buf, "Wilgotnosc\t %hu.%hu%%<br><br>", humid, humidDecimal); memcpy(uartData+pos, buf, len); pos += len;
+				printf("Temperatura\t %hu,%huC\r\n", temp, tempDecimal);
+				len = sprintf(buf, "<table class=\"dane_tabela\"><thead><tr><th>Temperatura</th><th>Wilgotność</th></tr></thead>");
+				memcpy(uartData+pos, buf, len); pos += len;
+				printf("Wilgotnosc\t %hu,%hu%%\r\n\r\n", humid, humidDecimal);
+				len = sprintf(buf, "<tbody><tr><td>%hu,%hu°C</td><td>%hu,%hu%%</td></tr></tbody></table>", temp, tempDecimal, humid, humidDecimal);
+				memcpy(uartData+pos, buf, len); pos += len;
 				HAL_UART_Transmit(&huart3, (uint8_t *)uartData, pos, TRANSMIT_TIME);
 				memset(uartData, 0x0, sizeof(uartData)); memset(buf, 0x0, sizeof(buf)); len = 0; pos = 0;
 			}
@@ -562,39 +570,11 @@ void printConnectedDevicesTree(void){
 			memset(uartData, 0x0, sizeof(uartData)); memset(buf, 0x0, sizeof(buf)); len = 0; pos = 0;
 		}//status == DISCONNECTED_AFTER_CONNECTION_CREATED
 	}
-	//Wypisanie odczytu "po staremu"
-//					uint16_t humid = (dataBLE[newData][i+1] << 8) | dataBLE[newData][i+2];
-//					uint16_t temp  = (dataBLE[newData][i+3] << 8) | dataBLE[newData][i+4];
-//					uint16_t humidDecimal = humid%10;
-//					uint16_t tempDecimal  = temp%10;
-//					temp = temp/(uint16_t)10;
-//					humid= humid/(uint16_t)10;
-//					//xQueueSend(msgQueueHandle, (uint8_t *)uartData, 100);
-//					printf("\r\nCzujnik %s\r\n", name);
-//
-//					memset(uartData, 0x0, sizeof(uartData));
-//					sprintf(uartData, "\r\nCzujnik %s\r\n", name);
-//					HAL_UART_Transmit(&huart3, (uint8_t *)uartData,
-//							sizeof("\r\nCzujnik %s\r\n")+sizeof(name), 10);
-//
-//					printf("Temperatura\t %hu.%huC\r\nWilgotnosc\t %hu.%hu%%\r\n",
-//							  temp, tempDecimal, humid, humidDecimal);
-//
-////					memset(uartData, 0x0, sizeof(uartData));
-//					sprintf(uartData, "Temperatura\t %hu.%huC\r\n", temp, tempDecimal);
-//					HAL_UART_Transmit(&huart3, (uint8_t *)uartData,
-//							sizeof("Temperatura\t %hu.%huC\r\n")+2*sizeof(uint16_t), 10);
-//
-////					memset(uartData, 0x0, sizeof(uartData));
-//					sprintf(uartData, "Wilgotnosc\t %hu.%hu%%\r\n", humid, humidDecimal);
-//					HAL_UART_Transmit(&huart3, (uint8_t *)uartData,
-//							sizeof("Wilgotnosc\t %hu.%hu%%\r\n")+2*sizeof(uint16_t), 10);
-
 }
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 	if(huart->Instance == USART3){ //Odebrano wiadomosc z konfiguracja - wyciagnij info z wiadomosci i wyslij info do odp. servera
-		//Format wiadomosci: (dodawanie) nazwa_urzadzenia \0 nazwa_czujnika \0 interwal \0 (usuwanie) '\1' i tak samo (skan) samo '\2'
+		//Format wiadomosci: (dodawanie) nazwa_urzadzenia \0 nazwa_czujnika \0 interwal \0; (usuwanie) '\1' i tak samo; (skan) samo '\2'
 		uint8_t ind = 0; uint8_t deviceName[MAX_NAME_LEN]; uint8_t sensorName[MAX_NAME_LEN]; uint8_t intervalChar[MAX_NAME_LEN];
 		uint16_t interval = 0; uint8_t whichCmd = uartRcv[0];
 		memset(deviceName, 0, MAX_NAME_LEN); memset(sensorName, 0, MAX_NAME_LEN); memset(intervalChar, 0, MAX_NAME_LEN);

@@ -38,7 +38,7 @@ extern "C" {
 #include <stdbool.h>
 #define MAX_MSGS 5 //Max msgs that a client can receive and remember during 1 slot
 #define MSG_LEN 20 //Configuation message max length
-#define BUF_LEN 200 //uartData[] length for transmitting device tree via UART
+#define BUF_LEN 300 //uartData[] length for transmitting device tree via UART
 #define DELAY_TIME 3000 //Delay time between following reads in ms
 #define TRANSMIT_TIME 100 //Time for UART data transmission in ms
 #define MAX_NAME_LEN 12 //Sensor name max length (in characters)
