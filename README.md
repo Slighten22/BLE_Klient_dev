@@ -5,6 +5,7 @@
 3. Czujniki DHT22
 
 ## Uruchamianie projektu:
+Aby wgrać program do pamięci płytki STM32L476, wystarczy pobrać plik `.hex` z katalogu `Debug` i zaprogramować go do pamięci płytki, np. za pomocą programu STM32 ST-LINK Utility.
 1) Podłączyć Raspberry Pi i płytkę centralną(wg Generic Access Profile - GAP) i płytkę/płytki peryferyjne(GAP) do zasilania
 2) Połączyć się z RPi na PC przez SSH(np. PuTTy)/VNC(np. VNC Viewer) - domyślne IP RPi to 192.168.0.102, sprawdzić na PC czy serwer działa (dla IP 192.168.0.102 na PC strona http://192.168.0.102/test/test.php)
 3) Podłączyć płytkę centralną(GAP) do RPi - wspólna masa (np. RPi: pin 6 <-> STM: pin 9 na CN9) i 2 kable na UART (RPi: pin 8 <-> STM: pin PC10, RPi: pin 10 <-> STM: pin PC11)
@@ -22,6 +23,7 @@
 3. DHT22 sensors
 
 ## Launching the project:
+To flash the program into the STM32L476 board's memory, you should download the `.hex` file from `Debug` folder and flash it using e.g. STM32 ST-LINK Utility program.
 1) Power up Raspberry Pi and STM32L476 board(s)
 2) Connect with Raspberry Pi from PC via SSH (with PuTTy) or VNC (with VNC Viewer)
 3) Connect the 'central' (in Generic Access Profile - GAP terminology) with the RPi - common ground (e.g. RPi: pin 6 <-> STM: pin 9 on CN9) and 2 cables for UART (RPi: pin 8 <-> STM: pin PC10, RPi: pin 10 <-> STM: pin PC11)
